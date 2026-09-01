@@ -97,13 +97,50 @@ const EQUIPMENT_SLOTS = [
 const SOCKETS_PER_SLOT = 4;
 const FIXED_PATTERN_SIZE = 3;
 const MAX_COMBINATIONS = 9;
+const OPTIMIZER_RESTARTS = 24;
 const NUMBER_FORMATTER = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 0,
 });
+const SUBLIMATION_CATALOG = Array.isArray(window.COLOR_FORGE_SUBLIMATIONS)
+  ? window.COLOR_FORGE_SUBLIMATIONS
+  : [];
+const SUBLIMATION_RESULTS_LIMIT = 18;
 
 const ALL_STATS = COLOR_IDS.flatMap((colorId) =>
   COLOR_DEFINITIONS[colorId].stats.map((stat) => stat.name),
 );
+
+const DOMAIN_STATS = new Set(
+  ALL_STATS.filter((statName) => statName.startsWith("Dominio")),
+);
+
+const RESISTANCE_STATS = new Set(
+  ALL_STATS.filter((statName) => statName.startsWith("Resistencia")),
+);
+
+const EXTRA_STATS = new Set(
+  ALL_STATS.filter(
+    (statName) =>
+      !DOMAIN_STATS.has(statName) && !RESISTANCE_STATS.has(statName),
+  ),
+);
+
+const STAT_GROUP_LABELS = {
+  attack: "Ataque · Dominios",
+  defense: "Defensa · Resistencias",
+  extras: "Extras",
+};
+const STAT_GROUP_ORDER = {
+  attack: 0,
+  defense: 1,
+  extras: 2,
+};
+
+const STAT_ORDER = [
+  ...ALL_STATS.filter((statName) => DOMAIN_STATS.has(statName)),
+  ...ALL_STATS.filter((statName) => RESISTANCE_STATS.has(statName)),
+  ...ALL_STATS.filter((statName) => EXTRA_STATS.has(statName)),
+];
 
 const DEFAULT_WEIGHTS = Object.fromEntries(
   ALL_STATS.map((statName) => [statName, 0]),
@@ -127,6 +164,7 @@ const state = {
     { id: 2, target: "auto", colors: ["red", "green", "green"] },
     { id: 3, target: "auto", colors: ["blue", "blue", "blue"] },
   ],
+  sublimationQuery: "",
   nextCombinationId: 4,
   result: null,
 };
@@ -138,6 +176,9 @@ function getElements() {
   elements.statsControls = document.querySelector("#stats-controls");
   elements.combinationList = document.querySelector("#combination-list");
   elements.priorityCount = document.querySelector("#priority-count");
+  elements.sublimationSearch = document.querySelector("#sublimation-search");
+  elements.sublimationResults = document.querySelector("#sublimation-results");
+  elements.sublimationCount = document.querySelector("#sublimation-count");
   elements.slotGrid = document.querySelector("#slot-grid");
   elements.colorDistribution = document.querySelector("#color-distribution");
   elements.statCoverage = document.querySelector("#stat-coverage");
@@ -164,8 +205,156 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizeSearchText(value) {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function getColorLabel(colorId) {
   return COLOR_DEFINITIONS[colorId]?.label ?? colorId;
+}
+
+function getSublimationMatches() {
+  const terms = normalizeSearchText(state.sublimationQuery)
+    .split(/\s+/)
+    .filter(Boolean);
+  if (terms.length === 0) {
+    return SUBLIMATION_CATALOG;
+  }
+  return SUBLIMATION_CATALOG.filter((sublimation) => {
+    const searchableText = normalizeSearchText(sublimation.searchText);
+    return terms.every((term) => searchableText.includes(term));
+  });
+}
+
+function renderSublimationPattern(sublimation) {
+  if (sublimation.pattern.length === 0) {
+    return `
+      <span class="catalog-no-pattern">
+        ${escapeHtml(sublimation.kindLabel)} · Sin combinación de colores
+      </span>
+    `;
+  }
+  return `
+    <span class="catalog-pattern" aria-label="Combinación ${escapeHtml(
+      sublimation.pattern.map(getColorLabel).join(" / "),
+    )}">
+      ${sublimation.pattern
+        .map(
+          (colorId) =>
+            `<span class="color-shape color-shape-${COLOR_DEFINITIONS[colorId].className}" title="${getColorLabel(
+              colorId,
+            )}"></span>`,
+        )
+        .join("")}
+    </span>
+  `;
+}
+
+function renderSublimationCatalog() {
+  if (!elements.sublimationResults) {
+    return;
+  }
+  const matches = getSublimationMatches();
+  const visibleMatches = matches.slice(0, SUBLIMATION_RESULTS_LIMIT);
+  const resultLabel = matches.length === 1 ? "resultado" : "resultados";
+  elements.sublimationCount.textContent = `${matches.length} ${resultLabel}`;
+
+  if (matches.length === 0) {
+    elements.sublimationResults.innerHTML = `
+      <div class="catalog-empty">
+        No hay sublimaciones que coincidan con esa búsqueda.
+        Prueba con una palabra del efecto, una condición o "épica"/"reliquia".
+      </div>
+    `;
+    return;
+  }
+
+  const limitMessage =
+    matches.length > SUBLIMATION_RESULTS_LIMIT
+      ? `<p class="catalog-limit">Mostrando ${SUBLIMATION_RESULTS_LIMIT} de ${matches.length}. Sigue escribiendo para afinar la búsqueda.</p>`
+      : "";
+  elements.sublimationResults.innerHTML = `
+    ${visibleMatches
+      .map((sublimation) => {
+        const effectText = sublimation.effectText.replace(/(^|\n)- /g, "$1> ");
+        const effectHtml = escapeHtml(effectText).replaceAll(
+          "\n",
+          "<br>",
+        );
+        const addButton =
+          sublimation.pattern.length > 0
+            ? `
+              <button
+                class="catalog-add-button"
+                type="button"
+                data-catalog-add="${sublimation.id}"
+              >Añadir patrón</button>
+            `
+            : `
+              <span class="catalog-reference-only">Solo efecto · no fija colores</span>
+            `;
+        return `
+          <article class="sublimation-result">
+            <div class="sublimation-result-header">
+              <div class="sublimation-result-title">
+                <h4>${escapeHtml(sublimation.name)}</h4>
+                <span class="catalog-kind catalog-kind-${sublimation.kind}">${escapeHtml(
+                  sublimation.kindLabel,
+                )}</span>
+              </div>
+              <span class="catalog-level">Nv. ${sublimation.level}</span>
+            </div>
+            <div class="catalog-pattern-row">
+              ${renderSublimationPattern(sublimation)}
+            </div>
+            <div class="catalog-effect">
+              <strong>${escapeHtml(sublimation.effectName)}</strong>
+              <p>${effectHtml}</p>
+            </div>
+            <div class="catalog-result-footer">${addButton}</div>
+          </article>
+        `;
+      })
+      .join("")}
+    ${limitMessage}
+  `;
+
+  elements.sublimationResults
+    .querySelectorAll("[data-catalog-add]")
+    .forEach((button) => {
+      button.addEventListener("click", addSublimationFromCatalog);
+    });
+}
+
+function addSublimationFromCatalog(event) {
+  const sublimationId = Number(event.currentTarget.dataset.catalogAdd);
+  const sublimation = SUBLIMATION_CATALOG.find(
+    (item) => item.id === sublimationId,
+  );
+  if (!sublimation || sublimation.pattern.length === 0) {
+    return;
+  }
+  if (state.combinations.length >= MAX_COMBINATIONS) {
+    showFeedback(
+      `Puedes añadir como máximo ${MAX_COMBINATIONS} sublimaciones.`,
+      true,
+    );
+    return;
+  }
+  state.combinations.push({
+    id: state.nextCombinationId,
+    target: "auto",
+    colors: [...sublimation.pattern],
+    sublimationId: sublimation.id,
+    sublimationName: sublimation.name,
+  });
+  state.nextCombinationId += 1;
+  renderCombinationList();
+  calculateAndRender();
+  showFeedback(`Sublimación «${sublimation.name}» añadida a la build.`);
 }
 
 function getColorOptions(selectedColor) {
@@ -187,9 +376,16 @@ function getTargetOptions(selectedTarget) {
 }
 
 function renderStatsControls() {
-  elements.statsControls.innerHTML = ALL_STATS.map((statName) => {
+  elements.statsControls.innerHTML = STAT_ORDER.map((statName, statIndex) => {
     const weight = state.weights[statName] ?? 0;
     const slotValue = state.slotValues[statName] ?? 0;
+    const statGroup = getStatGroup(statName);
+    const previousGroup =
+      statIndex > 0 ? getStatGroup(STAT_ORDER[statIndex - 1]) : null;
+    const groupHeading =
+      statGroup !== previousGroup
+        ? `<div class="stat-group-heading">${STAT_GROUP_LABELS[statGroup]}</div>`
+        : "";
     const safeId = `stat-${statName
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -198,6 +394,7 @@ function renderStatsControls() {
     const slotValueId = `${safeId}-slot-value`;
     const activeClass = weight > 0 ? " is-active" : "";
     return `
+      ${groupHeading}
       <div class="stat-control${activeClass}" data-stat-control="${escapeHtml(statName)}">
         <div class="stat-control-header">
           <label for="${safeId}">${escapeHtml(statName)}</label>
@@ -392,6 +589,14 @@ function isDoubleStat(statName, slotName) {
   return getDoubleSlotsForStat(statName).includes(slotName);
 }
 
+function isDomainStat(statName) {
+  return DOMAIN_STATS.has(statName);
+}
+
+function isResistanceStat(statName) {
+  return RESISTANCE_STATS.has(statName);
+}
+
 function getCandidateColors() {
   return COLOR_IDS;
 }
@@ -400,8 +605,8 @@ function compareChoices(first, second) {
   if (!second) {
     return first;
   }
-  if (first.score !== second.score) {
-    return first.score > second.score ? first : second;
+  if (first.optimizationScore !== second.optimizationScore) {
+    return first.optimizationScore > second.optimizationScore ? first : second;
   }
   if (first.isDouble !== second.isDouble) {
     return first.isDouble ? first : second;
@@ -412,13 +617,16 @@ function compareChoices(first, second) {
   return first.colorId < second.colorId ? first : second;
 }
 
-function getBestChoiceForColor(colorId, slotName) {
-  const candidates = getStatsForColor(colorId).map((statName) => {
+function getChoicesForColor(colorId, slotName) {
+  return getStatsForColor(colorId).map((statName) => {
     const priority = state.weights[statName] ?? 0;
     const slotValue = state.slotValues[statName] ?? 0;
     const isDouble = isDoubleStat(statName, slotName);
     const multiplier = isDouble ? 2 : 1;
     const realValue = slotValue * multiplier;
+    const optimizationScore = isDomainStat(statName)
+      ? priority * realValue
+      : priority * multiplier;
     return {
       colorId,
       statName,
@@ -427,10 +635,22 @@ function getBestChoiceForColor(colorId, slotName) {
       multiplier,
       isDouble,
       realValue,
+      optimizationScore,
       score: priority * realValue,
     };
   });
+}
 
+function getChoicesForAllowedColors(colorIds, slotName) {
+  const choices = colorIds.flatMap((colorId) =>
+    getChoicesForColor(colorId, slotName),
+  );
+  const prioritizedChoices = choices.filter((choice) => choice.priority > 0);
+  return prioritizedChoices.length > 0 ? prioritizedChoices : choices;
+}
+
+function getBestChoiceForColor(colorId, slotName) {
+  const candidates = getChoicesForColor(colorId, slotName);
   return candidates.reduce((best, candidate) => compareChoices(candidate, best), null);
 }
 
@@ -440,25 +660,602 @@ function getBestFreeChoice(slotName) {
     .reduce((best, candidate) => compareChoices(candidate, best), null);
 }
 
-function createAssignment(slotName, combination) {
-  const socketChoices = combination
-    ? combination.colors.map((colorId) => getBestChoiceForColor(colorId, slotName))
-    : [];
-  while (socketChoices.length < SOCKETS_PER_SLOT) {
-    socketChoices.push(getBestFreeChoice(slotName));
+function getMaxPatternWindowStart(combination) {
+  return combination ? SOCKETS_PER_SLOT - combination.colors.length : 0;
+}
+
+// windowStart 0 => el patrón ocupa las posiciones 1-3 (deja libre la 4).
+// windowStart 1 => el patrón ocupa las posiciones 2-4 (deja libre la 1).
+// Con FIXED_PATTERN_SIZE=3 y SOCKETS_PER_SLOT=4 esto cubre exactamente
+// las dos ventanas válidas descritas por WakForge para un patrón de 3 en 4.
+function createAssignment(slotName, combination, windowStart = 0) {
+  const socketChoices = new Array(SOCKETS_PER_SLOT).fill(null);
+  if (combination) {
+    combination.colors.forEach((colorId, colorIndex) => {
+      socketChoices[windowStart + colorIndex] = {
+        ...getBestChoiceForColor(colorId, slotName),
+        isFixed: true,
+      };
+    });
+  }
+  for (let index = 0; index < SOCKETS_PER_SLOT; index += 1) {
+    if (!socketChoices[index]) {
+      socketChoices[index] = { ...getBestFreeChoice(slotName), isFixed: false };
+    }
   }
   const sockets = socketChoices.map((choice, index) => ({
     ...choice,
     socketIndex: index,
-    isFixed: Boolean(combination && index < combination.colors.length),
   }));
   return {
     slotName,
     sockets,
     combinationId: combination?.id ?? null,
     fixedColors: combination?.colors ?? [],
+    patternStart: combination ? windowStart : null,
+    optimizationScore: sockets.reduce(
+      (total, socket) => total + socket.optimizationScore,
+      0,
+    ),
     score: sockets.reduce((total, socket) => total + socket.score, 0),
   };
+}
+
+// El optimizador decide la ventana del patrón: evalúa las posiciones válidas
+// (1-3 y 2-4) y se queda con la de mayor puntuación; en empate usa la
+// paridad del slot como desempate estable para repartir ambas ventanas.
+function createBestAssignment(slotName, combination) {
+  if (!combination) {
+    return createAssignment(slotName, null, 0);
+  }
+  const maxWindowStart = getMaxPatternWindowStart(combination);
+  const preferredStart = EQUIPMENT_SLOTS.indexOf(slotName) % 2 === 0 ? 0 : Math.min(1, maxWindowStart);
+  let best = null;
+  for (let windowStart = 0; windowStart <= maxWindowStart; windowStart += 1) {
+    const candidate = createAssignment(slotName, combination, windowStart);
+    if (
+      !best ||
+      candidate.optimizationScore > best.optimizationScore ||
+      (candidate.optimizationScore === best.optimizationScore && windowStart === preferredStart)
+    ) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+function recalculateAssignment(assignment) {
+  assignment.optimizationScore = assignment.sockets.reduce(
+    (total, socket) => total + socket.optimizationScore,
+    0,
+  );
+  assignment.score = assignment.sockets.reduce(
+    (total, socket) => total + socket.score,
+    0,
+  );
+}
+
+function getStatGroup(statName) {
+  if (isDomainStat(statName)) {
+    return "attack";
+  }
+  if (isResistanceStat(statName)) {
+    return "defense";
+  }
+  if (EXTRA_STATS.has(statName)) {
+    return "extras";
+  }
+  return null;
+}
+
+function getCombatObjective(assignments, config) {
+  const groupTotals = Object.fromEntries(
+    config.activeGroups.map((group) => [group, 0]),
+  );
+  const resistanceTotals = Object.fromEntries(
+    config.activeResistanceStats.map((statName) => [statName, 0]),
+  );
+  let weightedScore = 0;
+  let prioritizedSocketCount = 0;
+
+  for (const assignment of assignments) {
+    for (const socket of assignment.sockets) {
+      weightedScore += socket.score;
+      prioritizedSocketCount += Number(socket.priority > 0);
+      const group = getStatGroup(socket.statName);
+      if (group && config.activeGroupSet.has(group)) {
+        groupTotals[group] += socket.realValue;
+      }
+      if (group === "defense" && config.activeResistanceSet.has(socket.statName)) {
+        resistanceTotals[socket.statName] += socket.realValue;
+      }
+    }
+  }
+
+  const missingGroups = config.activeGroups.reduce(
+    (total, group) => total + Number(groupTotals[group] === 0),
+    0,
+  );
+  const groupRatios =
+    missingGroups === 0
+      ? config.activeGroups.map(
+          (group) => groupTotals[group] / config.groupWeights[group],
+        )
+      : [];
+  const groupError =
+    missingGroups === 0
+      ? Math.max(...groupRatios) - Math.min(...groupRatios)
+      : Infinity;
+  const resistanceError =
+    config.activeResistanceStats.length > 1 && groupTotals.defense > 0
+      ? config.activeResistanceStats.reduce(
+          (total, statName) =>
+            total +
+            Math.abs(
+              resistanceTotals[statName] / groupTotals.defense -
+                config.resistanceTarget[statName],
+            ),
+          0,
+        )
+      : config.activeResistanceStats.length > 1
+        ? Infinity
+        : 0;
+
+  return {
+    missingGroups,
+    groupError,
+    resistanceError,
+    prioritizedSocketCount,
+    weightedScore,
+  };
+}
+
+function compareCombatObjectives(first, second) {
+  if (first.missingGroups !== second.missingGroups) {
+    return first.missingGroups < second.missingGroups ? 1 : -1;
+  }
+  if (first.groupError !== second.groupError) {
+    return first.groupError < second.groupError ? 1 : -1;
+  }
+  if (first.resistanceError !== second.resistanceError) {
+    return first.resistanceError < second.resistanceError ? 1 : -1;
+  }
+  if (first.prioritizedSocketCount !== second.prioritizedSocketCount) {
+    return first.prioritizedSocketCount > second.prioritizedSocketCount ? 1 : -1;
+  }
+  if (first.weightedScore !== second.weightedScore) {
+    return first.weightedScore > second.weightedScore ? 1 : -1;
+  }
+  return 0;
+}
+
+function balanceResistanceDistribution(assignments, config) {
+  if (config.activeResistanceStats.length < 2) {
+    return;
+  }
+
+  const resistanceSockets = assignments.flatMap((assignment) =>
+    assignment.sockets
+      .filter((socket) => config.activeResistanceSet.has(socket.statName))
+      .map((socket) => ({ assignment, socket })),
+  );
+  const currentDefenseTotal = resistanceSockets.reduce(
+    (total, entry) => total + entry.socket.realValue,
+    0,
+  );
+  if (resistanceSockets.length === 0 || currentDefenseTotal === 0) {
+    return;
+  }
+
+  const targetTotals = Object.fromEntries(
+    config.activeResistanceStats.map((statName) => [
+      statName,
+      currentDefenseTotal * config.resistanceTarget[statName],
+    ]),
+  );
+  const totals = Object.fromEntries(
+    config.activeResistanceStats.map((statName) => [statName, 0]),
+  );
+
+  resistanceSockets.sort((first, second) => {
+    if (first.socket.isFixed !== second.socket.isFixed) {
+      return first.socket.isFixed ? -1 : 1;
+    }
+    return first.socket.realValue - second.socket.realValue;
+  });
+
+  for (const entry of resistanceSockets) {
+    const allowedColorIds = entry.socket.isFixed
+      ? [entry.socket.colorId]
+      : COLOR_IDS;
+    const choices = allowedColorIds
+      .flatMap((colorId) => getChoicesForColor(colorId, entry.assignment.slotName))
+      .filter((choice) => config.activeResistanceSet.has(choice.statName));
+    let bestChoice = null;
+    let bestBalanceError = Infinity;
+
+    for (const choice of choices) {
+      const projectedError = config.activeResistanceStats.reduce(
+        (total, statName) => {
+          const projectedTotal =
+            totals[statName] +
+            (choice.statName === statName ? choice.realValue : 0);
+          return (
+            total +
+            Math.abs(projectedTotal / targetTotals[statName] - 1)
+          );
+        },
+        0,
+      );
+      if (
+        !bestChoice ||
+        projectedError < bestBalanceError ||
+        (projectedError === bestBalanceError &&
+          choice.optimizationScore > bestChoice.optimizationScore)
+      ) {
+        bestChoice = choice;
+        bestBalanceError = projectedError;
+      }
+    }
+
+    if (!bestChoice) {
+      continue;
+    }
+    const socketIndex = entry.socket.socketIndex;
+    const isFixed = entry.socket.isFixed;
+    Object.assign(entry.socket, bestChoice, { socketIndex, isFixed });
+    totals[bestChoice.statName] += bestChoice.realValue;
+  }
+
+  refineResistanceDistribution(assignments, config);
+  improveResistancePairs(assignments, config);
+}
+
+function getResistanceTotals(assignments, config) {
+  const totals = Object.fromEntries(
+    config.activeResistanceStats.map((statName) => [statName, 0]),
+  );
+  for (const assignment of assignments) {
+    for (const socket of assignment.sockets) {
+      if (config.activeResistanceSet.has(socket.statName)) {
+        totals[socket.statName] += socket.realValue;
+      }
+    }
+  }
+  return totals;
+}
+
+function getResistanceBalanceError(totals, targetTotals, config) {
+  return config.activeResistanceStats.reduce(
+    (total, statName) =>
+      total + Math.abs(totals[statName] / targetTotals[statName] - 1),
+    0,
+  );
+}
+
+function refineResistanceDistribution(assignments, config) {
+  const resistanceEntries = assignments.flatMap((assignment) =>
+    assignment.sockets
+      .filter((socket) => config.activeResistanceSet.has(socket.statName))
+      .map((socket) => ({ assignment, socket })),
+  );
+  const currentDefenseTotal = resistanceEntries.reduce(
+    (total, entry) => total + entry.socket.realValue,
+    0,
+  );
+  if (resistanceEntries.length === 0 || currentDefenseTotal === 0) {
+    return;
+  }
+
+  const targetTotals = Object.fromEntries(
+    config.activeResistanceStats.map((statName) => [
+      statName,
+      currentDefenseTotal * config.resistanceTarget[statName],
+    ]),
+  );
+  let currentError = getResistanceBalanceError(
+    getResistanceTotals(assignments, config),
+    targetTotals,
+    config,
+  );
+
+  for (let pass = 0; pass < 12; pass += 1) {
+    let changed = false;
+    for (const entry of resistanceEntries) {
+      const originalSocket = { ...entry.socket };
+      const allowedColorIds = entry.socket.isFixed
+        ? [entry.socket.colorId]
+        : COLOR_IDS;
+      const choices = allowedColorIds
+        .flatMap((colorId) =>
+          getChoicesForColor(colorId, entry.assignment.slotName),
+        )
+        .filter((choice) => config.activeResistanceSet.has(choice.statName));
+      let bestChoice = null;
+      let bestError = currentError;
+
+      for (const choice of choices) {
+        Object.assign(entry.socket, originalSocket);
+        Object.assign(entry.socket, choice, {
+          socketIndex: originalSocket.socketIndex,
+          isFixed: originalSocket.isFixed,
+        });
+        const candidateTotals = getResistanceTotals(assignments, config);
+        const candidateError = getResistanceBalanceError(
+          candidateTotals,
+          targetTotals,
+          config,
+        );
+        if (
+          candidateError < bestError ||
+          (candidateError === bestError &&
+            choice.optimizationScore >
+              (bestChoice?.optimizationScore ??
+                originalSocket.optimizationScore))
+        ) {
+          bestChoice = choice;
+          bestError = candidateError;
+        }
+      }
+
+      if (bestChoice) {
+        Object.assign(entry.socket, bestChoice, {
+          socketIndex: originalSocket.socketIndex,
+          isFixed: originalSocket.isFixed,
+        });
+        currentError = bestError;
+        changed = true;
+      } else {
+        Object.assign(entry.socket, originalSocket);
+      }
+    }
+    if (!changed) {
+      break;
+    }
+  }
+}
+
+function improveResistancePairs(assignments, config) {
+  const resistanceEntries = assignments.flatMap((assignment) =>
+    assignment.sockets
+      .filter((socket) => config.activeResistanceSet.has(socket.statName))
+      .map((socket) => ({ assignment, socket })),
+  );
+  if (resistanceEntries.length < 2) {
+    return;
+  }
+
+  let currentObjective = getCombatObjective(assignments, config);
+  for (let pass = 0; pass < 6; pass += 1) {
+    let bestMove = null;
+    let bestObjective = currentObjective;
+
+    for (let firstIndex = 0; firstIndex < resistanceEntries.length; firstIndex += 1) {
+      const firstEntry = resistanceEntries[firstIndex];
+      const firstOriginal = { ...firstEntry.socket };
+      const firstColors = firstEntry.socket.isFixed
+        ? [firstEntry.socket.colorId]
+        : COLOR_IDS;
+      const firstChoices = firstColors
+        .flatMap((colorId) =>
+          getChoicesForColor(colorId, firstEntry.assignment.slotName),
+        )
+        .filter((choice) => config.activeResistanceSet.has(choice.statName));
+
+      for (
+        let secondIndex = firstIndex + 1;
+        secondIndex < resistanceEntries.length;
+        secondIndex += 1
+      ) {
+        const secondEntry = resistanceEntries[secondIndex];
+        const secondOriginal = { ...secondEntry.socket };
+        const secondColors = secondEntry.socket.isFixed
+          ? [secondEntry.socket.colorId]
+          : COLOR_IDS;
+        const secondChoices = secondColors
+          .flatMap((colorId) =>
+            getChoicesForColor(colorId, secondEntry.assignment.slotName),
+          )
+          .filter((choice) =>
+            config.activeResistanceSet.has(choice.statName),
+          );
+
+        for (const firstChoice of firstChoices) {
+          Object.assign(firstEntry.socket, firstChoice, {
+            socketIndex: firstOriginal.socketIndex,
+            isFixed: firstOriginal.isFixed,
+          });
+          for (const secondChoice of secondChoices) {
+            Object.assign(secondEntry.socket, secondChoice, {
+              socketIndex: secondOriginal.socketIndex,
+              isFixed: secondOriginal.isFixed,
+            });
+            const candidateObjective = getCombatObjective(assignments, config);
+            if (
+              compareCombatObjectives(candidateObjective, bestObjective) > 0
+            ) {
+              bestMove = {
+                firstEntry,
+                firstOriginal,
+                firstChoice,
+                secondEntry,
+                secondOriginal,
+                secondChoice,
+              };
+              bestObjective = candidateObjective;
+            }
+            Object.assign(secondEntry.socket, secondOriginal);
+          }
+          Object.assign(firstEntry.socket, firstOriginal);
+        }
+      }
+    }
+
+    if (!bestMove) {
+      break;
+    }
+
+    Object.assign(bestMove.firstEntry.socket, bestMove.firstChoice, {
+      socketIndex: bestMove.firstOriginal.socketIndex,
+      isFixed: bestMove.firstOriginal.isFixed,
+    });
+    Object.assign(bestMove.secondEntry.socket, bestMove.secondChoice, {
+      socketIndex: bestMove.secondOriginal.socketIndex,
+      isFixed: bestMove.secondOriginal.isFixed,
+    });
+    currentObjective = bestObjective;
+  }
+}
+
+function optimizeCombatAssignments(assignments) {
+  const activeDomainStats = STAT_ORDER.filter(
+    (statName) => isDomainStat(statName) && (state.weights[statName] ?? 0) > 0,
+  );
+  const activeResistanceStats = STAT_ORDER.filter(
+    (statName) => isResistanceStat(statName) && (state.weights[statName] ?? 0) > 0,
+  );
+  const activeExtraStats = STAT_ORDER.filter(
+    (statName) => EXTRA_STATS.has(statName) && (state.weights[statName] ?? 0) > 0,
+  );
+  const statsByGroup = {
+    attack: activeDomainStats,
+    defense: activeResistanceStats,
+    extras: activeExtraStats,
+  };
+  const groupWeights = {};
+  const activeGroups = [];
+  for (const [group, stats] of Object.entries(statsByGroup)) {
+    if (stats.length === 0) {
+      continue;
+    }
+    activeGroups.push(group);
+    groupWeights[group] =
+      stats.reduce(
+        (total, statName) => total + (state.weights[statName] ?? 0),
+        0,
+      ) / stats.length;
+  }
+
+  if (activeGroups.length === 0) {
+    return;
+  }
+
+  const defensePriorityTotal = activeResistanceStats.reduce(
+    (total, statName) => total + (state.weights[statName] ?? 0),
+    0,
+  );
+  const config = {
+    activeGroups,
+    activeGroupSet: new Set(activeGroups),
+    groupWeights,
+    activeResistanceSet: new Set(activeResistanceStats),
+    activeResistanceStats,
+    resistanceTarget: Object.fromEntries(
+      activeResistanceStats.map((statName) => [
+        statName,
+        defensePriorityTotal > 0
+          ? (state.weights[statName] ?? 0) / defensePriorityTotal
+          : 0,
+      ]),
+    ),
+  };
+  const choiceSets = assignments.map((assignment) =>
+    assignment.sockets.map((socket) => {
+      const allowedColorIds = socket.isFixed ? [socket.colorId] : COLOR_IDS;
+      return getChoicesForAllowedColors(allowedColorIds, assignment.slotName);
+    }),
+  );
+  const snapshotAssignments = () =>
+    assignments.map((assignment) =>
+      assignment.sockets.map((socket) => ({ ...socket })),
+    );
+  const restoreAssignments = (snapshot) => {
+    assignments.forEach((assignment, assignmentIndex) => {
+      assignment.sockets.forEach((socket, socketIndex) => {
+        Object.assign(socket, snapshot[assignmentIndex][socketIndex]);
+      });
+    });
+  };
+  const baselineSnapshot = snapshotAssignments();
+  let randomSeed = 0x9e3779b9;
+  const nextRandom = () => {
+    randomSeed = (randomSeed * 1664525 + 1013904223) >>> 0;
+    return randomSeed / 4294967296;
+  };
+  const improveCurrentAssignments = () => {
+    let currentObjective = getCombatObjective(assignments, config);
+
+    for (let pass = 0; pass < 12; pass += 1) {
+      let changed = false;
+
+      assignments.forEach((assignment, assignmentIndex) => {
+        assignment.sockets.forEach((socket, socketIndex) => {
+          const originalSocket = { ...socket };
+          let bestChoice = null;
+          let bestObjective = currentObjective;
+
+          for (const choice of choiceSets[assignmentIndex][socketIndex]) {
+            Object.assign(socket, originalSocket);
+            Object.assign(socket, choice, {
+              socketIndex: originalSocket.socketIndex,
+              isFixed: originalSocket.isFixed,
+            });
+            const candidateObjective = getCombatObjective(assignments, config);
+            if (
+              compareCombatObjectives(candidateObjective, bestObjective) > 0
+            ) {
+              bestChoice = choice;
+              bestObjective = candidateObjective;
+            }
+          }
+
+          if (bestChoice) {
+            Object.assign(socket, bestChoice, {
+              socketIndex: originalSocket.socketIndex,
+              isFixed: originalSocket.isFixed,
+            });
+            currentObjective = bestObjective;
+            changed = true;
+          } else {
+            Object.assign(socket, originalSocket);
+          }
+        });
+      });
+
+      if (!changed) {
+        break;
+      }
+    }
+
+    return currentObjective;
+  };
+  let bestSnapshot = snapshotAssignments();
+  let bestOverallObjective = getCombatObjective(assignments, config);
+
+  for (let restart = 0; restart < OPTIMIZER_RESTARTS; restart += 1) {
+    restoreAssignments(baselineSnapshot);
+    if (restart > 0) {
+      assignments.forEach((assignment, assignmentIndex) => {
+        assignment.sockets.forEach((socket, socketIndex) => {
+          const choices = choiceSets[assignmentIndex][socketIndex];
+          const choice = choices[Math.floor(nextRandom() * choices.length)];
+          Object.assign(socket, choice, {
+            socketIndex,
+            isFixed: socket.isFixed,
+          });
+        });
+      });
+    }
+
+    const candidateObjective = improveCurrentAssignments();
+    if (compareCombatObjectives(candidateObjective, bestOverallObjective) > 0) {
+      bestOverallObjective = candidateObjective;
+      bestSnapshot = snapshotAssignments();
+    }
+  }
+
+  restoreAssignments(bestSnapshot);
+  assignments.forEach(recalculateAssignment);
 }
 
 function getCombinationValidation(combination, explicitTargets) {
@@ -517,7 +1314,10 @@ function calculateOptimization() {
     initialAssignments.map((assignment) => [assignment.slotName, assignment]),
   );
   const initialScores = new Map(
-    initialAssignments.map((assignment) => [assignment.slotName, assignment.score]),
+    initialAssignments.map((assignment) => [
+      assignment.slotName,
+      assignment.optimizationScore,
+    ]),
   );
   const usedSlots = new Set();
 
@@ -526,14 +1326,9 @@ function calculateOptimization() {
       warnings.push(`La sublimación ${combination.id} no tiene un slot de destino disponible.`);
       continue;
     }
-    const assignment = createAssignment(combination.target, combination);
+    const assignment = createBestAssignment(combination.target, combination);
     assignments.set(combination.target, assignment);
     usedSlots.add(combination.target);
-  }
-
-  let fixedDelta = 0;
-  for (const slotName of usedSlots) {
-    fixedDelta += assignments.get(slotName).score - (initialScores.get(slotName) ?? 0);
   }
 
   const automaticCandidates = automatic;
@@ -570,11 +1365,11 @@ function calculateOptimization() {
     const combination = automaticCandidates[index];
     for (const slotName of availableSlots) {
       const slotIndex = EQUIPMENT_SLOTS.indexOf(slotName);
-      const assignment = createAssignment(slotName, combination);
+      const assignment = createBestAssignment(slotName, combination);
       const next = solveAutomatic(index + 1, usedMask | (1 << slotIndex));
       const candidate = {
         delta:
-          assignment.score -
+          assignment.optimizationScore -
           (initialScores.get(slotName) ?? 0) +
           next.delta,
         placements: [{ slotName, combination, assignment }, ...next.placements],
@@ -603,10 +1398,11 @@ function calculateOptimization() {
   }
 
   const resolvedAssignments = EQUIPMENT_SLOTS.map((slotName) => assignments.get(slotName));
-  const totalScore =
-    initialAssignments.reduce((total, assignment) => total + assignment.score, 0) +
-    fixedDelta +
-    automaticSolution.delta;
+  optimizeCombatAssignments(resolvedAssignments);
+  const totalScore = resolvedAssignments.reduce(
+    (total, assignment) => total + assignment.score,
+    0,
+  );
   const allSockets = resolvedAssignments.flatMap((assignment) => assignment.sockets);
 
   return {
@@ -675,6 +1471,8 @@ function renderSlotGrid(result) {
           `;
         })
         .join("");
+      const windowLabel =
+        assignment.patternStart === 1 ? "Ranuras 2-4" : "Ranuras 1-3";
       const patternMarkup = isFixed
         ? `
           <div class="fixed-pattern">
@@ -689,7 +1487,7 @@ function renderSlotGrid(result) {
                 )
                 .join("")}
             </span>
-            <span>· 1 libre</span>
+            <span>· ${windowLabel} · 1 libre</span>
           </div>
         `
         : "";
@@ -767,9 +1565,17 @@ function renderStatCoverage(result) {
       summary.score += socket.score;
     });
 
-  const prioritizedStats = ALL_STATS.filter((statName) => (state.weights[statName] ?? 0) > 0).sort(
-    (first, second) => (state.weights[second] ?? 0) - (state.weights[first] ?? 0),
-  );
+  const prioritizedStats = STAT_ORDER.filter(
+    (statName) => (state.weights[statName] ?? 0) > 0,
+  ).sort((first, second) => {
+    const groupDifference =
+      STAT_GROUP_ORDER[getStatGroup(first)] -
+      STAT_GROUP_ORDER[getStatGroup(second)];
+    if (groupDifference !== 0) {
+      return groupDifference;
+    }
+    return (state.weights[second] ?? 0) - (state.weights[first] ?? 0);
+  });
   const statsToShow =
     prioritizedStats.length > 0
       ? prioritizedStats
@@ -866,19 +1672,6 @@ function calculateAndRender() {
   }
 }
 
-function applyMeleePreset() {
-  state.weights = {
-    ...DEFAULT_WEIGHTS,
-    "Dominio Cuerpo a Cuerpo": 100,
-    "Dominio Berserker": 70,
-    "Puntos de Vida (PdV)": 65,
-    Esquiva: 35,
-    "Resistencia a Tierra": 25,
-  };
-  renderStatsControls();
-  calculateAndRender();
-}
-
 function clearPriorities() {
   state.weights = { ...DEFAULT_WEIGHTS };
   renderStatsControls();
@@ -899,16 +1692,34 @@ function resetDemo() {
     { id: 2, target: "auto", colors: ["red", "green", "green"] },
     { id: 3, target: "auto", colors: ["blue", "blue", "blue"] },
   ];
+  state.sublimationQuery = "";
   state.nextCombinationId = 4;
+  elements.sublimationSearch.value = "";
   renderStatsControls();
   renderCombinationList();
+  renderSublimationCatalog();
   calculateAndRender();
 }
 
 function bindEvents() {
   document.querySelector("#add-combination").addEventListener("click", addCombination);
-  document.querySelector("#preset-melee").addEventListener("click", applyMeleePreset);
   document.querySelector("#clear-priorities").addEventListener("click", clearPriorities);
+  elements.sublimationSearch.addEventListener("input", (event) => {
+    state.sublimationQuery = event.currentTarget.value;
+    renderSublimationCatalog();
+  });
+  document.addEventListener("keydown", (event) => {
+    const activeTagName = document.activeElement?.tagName;
+    if (
+      event.key === "/" &&
+      activeTagName !== "INPUT" &&
+      activeTagName !== "TEXTAREA" &&
+      activeTagName !== "SELECT"
+    ) {
+      event.preventDefault();
+      elements.sublimationSearch.focus();
+    }
+  });
   document.querySelector("#optimize-button").addEventListener("click", () => {
     calculateAndRender();
     elements.slotGrid.animate(
@@ -927,6 +1738,7 @@ function init() {
   bindEvents();
   renderStatsControls();
   renderCombinationList();
+  renderSublimationCatalog();
   renderReference();
   calculateAndRender();
 }
