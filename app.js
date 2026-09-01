@@ -159,13 +159,9 @@ const state = {
     "Resistencia a Tierra": 25,
   },
   slotValues: { ...DEFAULT_SLOT_VALUES },
-  combinations: [
-    { id: 1, target: "auto", colors: ["red", "red", "red"] },
-    { id: 2, target: "auto", colors: ["red", "green", "green"] },
-    { id: 3, target: "auto", colors: ["blue", "blue", "blue"] },
-  ],
+  combinations: [],
   sublimationQuery: "",
-  nextCombinationId: 4,
+  nextCombinationId: 1,
   result: null,
 };
 
@@ -1687,13 +1683,9 @@ function resetDemo() {
     "Resistencia a Tierra": 25,
   };
   state.slotValues = { ...DEFAULT_SLOT_VALUES };
-  state.combinations = [
-    { id: 1, target: "auto", colors: ["red", "red", "red"] },
-    { id: 2, target: "auto", colors: ["red", "green", "green"] },
-    { id: 3, target: "auto", colors: ["blue", "blue", "blue"] },
-  ];
+  state.combinations = [];
   state.sublimationQuery = "";
-  state.nextCombinationId = 4;
+  state.nextCombinationId = 1;
   elements.sublimationSearch.value = "";
   renderStatsControls();
   renderCombinationList();
