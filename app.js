@@ -6,7 +6,7 @@ const COLOR_DEFINITIONS = {
     stats: [
       {
         name: "Dominio Cuerpo a Cuerpo",
-        doubleSlots: ["Casco", "Botas", "Capa", "Armas a dos manos"],
+        doubleSlots: ["Casco", "Capa"],
       },
       {
         name: "Dominio Distancia",
