@@ -29,7 +29,7 @@ const COLOR_DEFINITIONS = {
     stats: [
       {
         name: "Puntos de Vida (PdV)",
-        doubleSlots: ["Casco"],
+        doubleSlots: ["Casco","Armas a dos manos"],
       },
       {
         name: "Resistencia a Agua",
@@ -68,15 +68,15 @@ const COLOR_DEFINITIONS = {
       },
       {
         name: "Dominio de Espalda",
-        doubleSlots: ["Botas"],
+        doubleSlots: ["Botas","Cinturón"],
       },
       {
-        name: "Voluntad",
-        doubleSlots: [],
+        name: "Dominio Crítico",
+        doubleSlots: ["Hombreras","Armas a dos manos"],
       },
       {
         name: "Resistencia a Fuego",
-        doubleSlots: ["Coraza"],
+        doubleSlots: ["Coraza","Cinturón"],
       },
     ],
   },
