@@ -1,0 +1,10 @@
+{
+  "name": "wakfu-builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync:data": "node scripts/sync-game-data.mjs",
+    "check:data": "node scripts/check-game-data.mjs",
+    "query:data": "node scripts/query-game-data.mjs"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "gameVersion": "1.92.1.60",
+  "generatedAt": "2026-09-20T18:18:07.327Z",
+  "source": {
+    "name": "CDN oficial de Ankama",
+    "configUrl": "https://wakfu.cdn.ankama.com/gamedata/config.json",
+    "versionRoot": "https://wakfu.cdn.ankama.com/gamedata/1.92.1.60/"
+  },
+  "counts": {
+    "officialItems": 8405,
+    "equipment": 7814,
+    "sublimations": 467,
+    "craftableEquipment": 4459,
+    "craftableSublimations": 79
+  },
+  "coverage": {
+    "equipmentEffects": "Descripción oficial interpretada cuando el formato es directo; se conserva la plantilla bruta.",
+    "sublimationEffects": "Se conservan los textos validados del catálogo local y se marcan los estados sin texto verificable.",
+    "acquisition": "Las recetas e ingredientes proceden del CDN oficial. Drops, cofres y croupiers siguen enlazando a MethodWakfu hasta disponer de una fuente estructurada verificable."
+  },
+  "hashes": {
+    "gameData": "3c1d9b4631cf68fd029eb6a21395b5253d2edd6ece15a1a511c3f442a1730121",
+    "sublimations": "68162bbc4fd2374ea3111350879e3bc186c3b545fb2e541b8d3979bc40d6f826"
+  }
+}

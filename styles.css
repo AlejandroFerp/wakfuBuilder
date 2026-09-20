@@ -947,6 +947,140 @@ a {
   text-align: center;
 }
 
+.acquisition-note {
+  color: var(--blue);
+}
+
+.catalog-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.catalog-filters select,
+.catalog-filters input {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(143, 164, 201, 0.18);
+  border-radius: 7px;
+  color: var(--muted-strong);
+  background: rgba(255, 255, 255, 0.035);
+  font: inherit;
+  font-size: 9px;
+}
+
+.equipment-meta {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.equipment-footer {
+  align-items: flex-start;
+}
+
+.catalog-link {
+  flex: 0 0 auto;
+  color: var(--blue);
+  font-size: 9px;
+  text-decoration: none;
+}
+
+.catalog-link:hover {
+  color: var(--blue-strong);
+  text-decoration: underline;
+}
+
+.equipment-actions {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.build-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.build-metrics {
+  color: var(--accent);
+  font-size: 9px;
+}
+
+.build-stat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.build-stat-list span {
+  padding: 4px 5px;
+  border-radius: 5px;
+  color: var(--muted-strong);
+  background: rgba(114, 184, 255, 0.08);
+  font-size: 8px;
+}
+
+.build-stat-list strong {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.build-items {
+  display: grid;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-color: rgba(143, 164, 201, 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+.build-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.build-item > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.build-item small,
+.build-item span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.build-item strong {
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.build-warning {
+  margin: 0;
+  color: #ffb38c;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .add-button {
   padding: 6px 8px;
   color: var(--accent);
@@ -1895,6 +2029,25 @@ a {
     line-height: 1.4;
   }
 }
+
+.equipment-guide { margin-top: 28px; padding: clamp(16px, 3vw, 30px); }
+.equipment-guide > .select-label { display: grid; gap: 8px; max-width: 340px; }
+.equipment-guide select { width: 100%; padding: 12px; background: var(--panel-soft); color: var(--text); border: 1px solid var(--line-strong); border-radius: 10px; }
+.guide-note { color: var(--muted-strong); font-size: 13px; line-height: 1.6; }
+.guide-colors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.guide-color { padding: 16px; border: 1px solid var(--line-strong); border-top: 3px solid var(--guide-color); border-radius: 12px; background: var(--panel-soft); }
+.guide-color-red { --guide-color: var(--red); }
+.guide-color-blue { --guide-color: var(--blue); }
+.guide-color-green { --guide-color: var(--green); }
+.guide-color h3 { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--guide-color); }
+.guide-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.guide-stat { padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.guide-stat > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.guide-stat small { display: block; margin-top: 8px; color: var(--muted-strong); line-height: 1.5; }
+.guide-stat-double { border-color: var(--guide-color); background: rgba(255, 255, 255, 0.035); }
+.guide-multiplier { white-space: nowrap; font-size: 12px; color: var(--muted-strong); }
+.guide-stat-double .guide-multiplier { color: var(--guide-color); font-weight: 800; }
+@media (max-width: 900px) { .guide-colors { grid-template-columns: 1fr; } }
 
 @media (prefers-reduced-motion: reduce) {
   *,

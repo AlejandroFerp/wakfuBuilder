@@ -8,9 +8,10 @@
       content="Planificador visual de ranuras, colores y estadisticas para optimizar una build."
     />
     <title>Color Forge | Optimizador de ranuras</title>
-    <link rel="stylesheet" href="styles.css?v=20260902-1" />
-    <script defer src="sublimations-data.js?v=20260902-1"></script>
-    <script defer src="app.js?v=20260902-1"></script>
+    <link rel="stylesheet" href="styles.css?v=20260920-2" />
+    <script defer src="data/game-data.js?v=20260919-1"></script>
+    <script defer src="sublimations-data.js?v=20260920-2"></script>
+    <script defer src="app.js?v=20260920-2"></script>
   </head>
   <body>
     <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -72,7 +73,7 @@
               <p class="eyebrow">CONFIGURACION</p>
               <h2>Tu build</h2>
             </div>
-            <span class="panel-step">01 — 04</span>
+            <span class="panel-step">01 — 06</span>
           </div>
 
           <section class="control-section">
@@ -144,6 +145,51 @@
             <div class="section-heading">
               <div>
                 <span class="section-number">04</span>
+                <h3>Catálogo de objetos</h3>
+              </div>
+              <span id="equipment-count" class="section-counter">0 resultados</span>
+            </div>
+            <p class="section-help">
+              Busca por nombre, ID, tipo o estadística. Los datos proceden del CDN oficial de
+              Ankama; la ficha enlaza a MethodWakfu para consultar obtención.
+            </p>
+            <label class="sublimation-search" for="equipment-search">
+              <span class="search-icon" aria-hidden="true">⌕</span>
+              <input
+                id="equipment-search"
+                type="search"
+                placeholder="Nombre, ID o estadística..."
+                autocomplete="off"
+              />
+            </label>
+            <div class="catalog-filters">
+              <select id="equipment-slot-filter" aria-label="Filtrar por slot">
+                <option value="">Todos los slots</option>
+              </select>
+              <input id="equipment-min-level" type="number" min="0" max="245" placeholder="Nivel mínimo" aria-label="Nivel mínimo" />
+            </div>
+            <div id="equipment-results" class="sublimation-results"></div>
+          </section>
+
+          <section class="control-section settings-section">
+            <div class="section-heading">
+              <div>
+                <span class="section-number">05</span>
+                <h3>Set en preparación</h3>
+              </div>
+              <button id="clear-build" class="quick-button" type="button">Vaciar</button>
+            </div>
+            <p class="section-help">
+              Equipa objetos desde el catálogo. El set se guarda en este navegador y valida las
+              restricciones básicas de reliquia, épica y arma secundaria.
+            </p>
+            <div id="build-summary" class="build-summary"></div>
+          </section>
+
+          <section class="control-section settings-section">
+            <div class="section-heading">
+              <div>
+                <span class="section-number">06</span>
                 <h3>Reglas del calculo</h3>
               </div>
             </div>
@@ -268,6 +314,17 @@
             <div id="color-reference" class="reference-grid"></div>
           </details>
         </section>
+      </section>
+      <section class="panel equipment-guide" aria-labelledby="equipment-guide-title">
+        <p class="eyebrow">GUÍA DE ENCANTAMIENTOS</p>
+        <h2 id="equipment-guide-title">¿Qué colores me convienen en esta pieza?</h2>
+        <p class="guide-note">Escoge una pieza para consultar las estadísticas disponibles por color. Las marcadas con ×2 reciben el doble de valor en esa pieza, a igual nivel de encantamiento.</p>
+        <label class="select-label" for="guide-slot">Pieza de equipo
+          <select id="guide-slot"></select>
+        </label>
+        <p id="guide-summary" class="guide-note" role="status"></p>
+        <div id="guide-colors" class="guide-colors"></div>
+        <p class="guide-note">Cada hueco aporta una de las estadísticas de su color. Puedes repetir colores; el bono depende de la estadística elegida y de la pieza. Esta guía usa las mismas reglas que el optimizador.</p>
       </section>
     </main>
 

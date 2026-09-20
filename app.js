@@ -105,6 +105,45 @@ const SUBLIMATION_CATALOG = Array.isArray(window.COLOR_FORGE_SUBLIMATIONS)
   ? window.COLOR_FORGE_SUBLIMATIONS
   : [];
 const SUBLIMATION_RESULTS_LIMIT = 18;
+const GAME_DATA = window.COLOR_FORGE_GAME_DATA ?? { manifest: null, equipment: [] };
+const EQUIPMENT_CATALOG = Array.isArray(GAME_DATA.equipment) ? GAME_DATA.equipment : [];
+const EQUIPMENT_RESULTS_LIMIT = 18;
+const BUILD_STORAGE_KEY = "color-forge:equipped-items:v1";
+const BUILD_SLOT_ORDER = [
+  "HEAD",
+  "BACK",
+  "NECK",
+  "SHOULDERS",
+  "CHEST",
+  "BELT",
+  "LEGS",
+  "LEFT_HAND",
+  "RIGHT_HAND",
+  "FIRST_WEAPON",
+  "SECOND_WEAPON",
+  "ACCESSORY",
+  "PET",
+  "MOUNTS",
+];
+const BUILD_STAT_LABELS = {
+  20: "PdV",
+  31: "PA",
+  41: "PM",
+  80: "Resistencia elemental",
+  83: "Resistencia agua",
+  84: "Resistencia tierra",
+  85: "Resistencia aire",
+  120: "Dominio elemental",
+  149: "Dominio crítico",
+  150: "% crítico",
+  160: "Alcance",
+  171: "Iniciativa",
+  173: "Placaje",
+  175: "Esquiva",
+  1052: "Dominio melé",
+  1053: "Dominio distancia",
+  1055: "Dominio berserker",
+};
 
 const ALL_STATS = COLOR_IDS.flatMap((colorId) =>
   COLOR_DEFINITIONS[colorId].stats.map((stat) => stat.name),
@@ -161,9 +200,26 @@ const state = {
   slotValues: { ...DEFAULT_SLOT_VALUES },
   combinations: [],
   sublimationQuery: "",
+  equipmentQuery: "",
+  equipmentSlot: "",
+  equipmentMinLevel: 0,
+  equippedItems: loadSavedBuild(),
   nextCombinationId: 1,
   result: null,
 };
+
+function loadSavedBuild() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BUILD_STORAGE_KEY) ?? "{}");
+    return saved && typeof saved === "object" ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveBuild() {
+  localStorage.setItem(BUILD_STORAGE_KEY, JSON.stringify(state.equippedItems));
+}
 
 const elements = {};
 
@@ -175,6 +231,12 @@ function getElements() {
   elements.sublimationSearch = document.querySelector("#sublimation-search");
   elements.sublimationResults = document.querySelector("#sublimation-results");
   elements.sublimationCount = document.querySelector("#sublimation-count");
+  elements.equipmentSearch = document.querySelector("#equipment-search");
+  elements.equipmentSlotFilter = document.querySelector("#equipment-slot-filter");
+  elements.equipmentMinLevel = document.querySelector("#equipment-min-level");
+  elements.equipmentResults = document.querySelector("#equipment-results");
+  elements.equipmentCount = document.querySelector("#equipment-count");
+  elements.buildSummary = document.querySelector("#build-summary");
   elements.slotGrid = document.querySelector("#slot-grid");
   elements.colorDistribution = document.querySelector("#color-distribution");
   elements.statCoverage = document.querySelector("#stat-coverage");
@@ -351,6 +413,226 @@ function addSublimationFromCatalog(event) {
   renderCombinationList();
   calculateAndRender();
   showFeedback(`Sublimación «${sublimation.name}» añadida a la build.`);
+}
+
+function getEquipmentSlotLabel(slotId) {
+  const item = EQUIPMENT_CATALOG.find((entry) => entry.positions.includes(slotId));
+  const index = item?.positions.indexOf(slotId) ?? -1;
+  return item?.positionLabels[index] ?? slotId;
+}
+
+function renderEquipmentSlotOptions() {
+  if (!elements.equipmentSlotFilter) {
+    return;
+  }
+  const availableSlots = BUILD_SLOT_ORDER.filter((slotId) =>
+    EQUIPMENT_CATALOG.some((item) => item.positions.includes(slotId)),
+  );
+  elements.equipmentSlotFilter.innerHTML = [
+    '<option value="">Todos los slots</option>',
+    ...availableSlots.map(
+      (slotId) =>
+        `<option value="${slotId}">${escapeHtml(getEquipmentSlotLabel(slotId))}</option>`,
+    ),
+  ].join("");
+}
+
+function getEquipmentMatches() {
+  const terms = normalizeSearchText(state.equipmentQuery)
+    .split(/\s+/)
+    .filter(Boolean);
+  return EQUIPMENT_CATALOG.filter((item) => {
+    const matchesTerms = terms.every((term) => item.searchText.includes(term));
+    const matchesSlot = !state.equipmentSlot || item.positions.includes(state.equipmentSlot);
+    return matchesTerms && matchesSlot && item.level >= state.equipmentMinLevel;
+  });
+}
+
+function renderEquipmentCatalog() {
+  if (!elements.equipmentResults) {
+    return;
+  }
+  const matches = getEquipmentMatches();
+  const visibleMatches = matches.slice(0, EQUIPMENT_RESULTS_LIMIT);
+  elements.equipmentCount.textContent = `${matches.length} ${matches.length === 1 ? "resultado" : "resultados"}`;
+
+  if (matches.length === 0) {
+    elements.equipmentResults.innerHTML =
+      '<div class="catalog-empty">No hay objetos que coincidan con los filtros.</div>';
+    return;
+  }
+
+  const limitMessage =
+    matches.length > EQUIPMENT_RESULTS_LIMIT
+      ? `<p class="catalog-limit">Mostrando ${EQUIPMENT_RESULTS_LIMIT} de ${matches.length}. Añade más términos o filtra por slot.</p>`
+      : "";
+  elements.equipmentResults.innerHTML = `
+    ${visibleMatches
+      .map((item) => {
+        const socketText =
+          item.sockets.max > 0
+            ? `${item.sockets.min}–${item.sockets.max} huecos`
+            : "Sin huecos";
+        const effects = item.effects
+          .slice(0, 6)
+          .map((effect) => escapeHtml(effect.text))
+          .join(" · ");
+        const recipe = item.recipes[0];
+        const acquisition = recipe
+          ? `Fabricable · receta Nv. ${recipe.level} · ${recipe.ingredients.length} ingredientes`
+          : "Obtención externa";
+        const equipButtons = item.positions
+          .filter((slotId) => BUILD_SLOT_ORDER.includes(slotId))
+          .map(
+            (slotId) =>
+              `<button class="catalog-add-button" type="button" data-equip-item="${item.id}" data-equip-slot="${slotId}">Equipar · ${escapeHtml(getEquipmentSlotLabel(slotId))}</button>`,
+          )
+          .join("");
+        return `
+          <article class="sublimation-result equipment-result">
+            <div class="sublimation-result-header">
+              <div class="sublimation-result-title">
+                <h4>${escapeHtml(item.name)}</h4>
+                <span class="catalog-kind">${escapeHtml(item.rarityLabel)}</span>
+              </div>
+              <span class="catalog-level">Nv. ${item.level}</span>
+            </div>
+            <div class="catalog-pattern-row equipment-meta">
+              <span>${escapeHtml(item.itemTypeName)}</span>
+              <span>· ${socketText}</span>
+              <span>· ID ${item.id}</span>
+            </div>
+            <div class="catalog-effect">
+              <strong>${escapeHtml(effects || "Sin efectos de equipo interpretables")}</strong>
+              <p>${escapeHtml(item.description || "Sin descripción.")}<br><span class="acquisition-note">${escapeHtml(acquisition)}</span></p>
+            </div>
+            <div class="catalog-result-footer equipment-footer">
+              <a class="catalog-link" href="https://db.methodwakfu.com/items/${item.id}" target="_blank" rel="noreferrer">Consultar obtención</a>
+              <div class="equipment-actions">${equipButtons}</div>
+            </div>
+          </article>
+        `;
+      })
+      .join("")}
+    ${limitMessage}
+  `;
+  elements.equipmentResults.querySelectorAll("[data-equip-item]").forEach((button) => {
+    button.addEventListener("click", equipCatalogItem);
+  });
+}
+
+function getEquippedItems() {
+  return BUILD_SLOT_ORDER.flatMap((slotId) => {
+    const itemId = state.equippedItems[slotId];
+    const item = EQUIPMENT_CATALOG.find((entry) => entry.id === itemId);
+    return item ? [{ slotId, item }] : [];
+  });
+}
+
+function getBuildWarnings(equippedItems) {
+  const warnings = [];
+  const epicCount = equippedItems.filter(({ item }) => item.isEpic).length;
+  const relicCount = equippedItems.filter(({ item }) => item.isRelic).length;
+  if (epicCount > 1) {
+    warnings.push("Hay más de un objeto épico equipado.");
+  }
+  if (relicCount > 1) {
+    warnings.push("Hay más de una reliquia equipada.");
+  }
+  const firstWeapon = equippedItems.find(({ slotId }) => slotId === "FIRST_WEAPON")?.item;
+  if (firstWeapon?.disabledPositions.includes("SECOND_WEAPON") && state.equippedItems.SECOND_WEAPON) {
+    warnings.push("El arma principal elegida bloquea el arma secundaria.");
+  }
+  return warnings;
+}
+
+function getEffectValue(effect, itemLevel) {
+  const base = Number(effect.params?.[0] ?? 0);
+  const perLevel = Number(effect.params?.[1] ?? 0);
+  return base + perLevel * itemLevel;
+}
+
+function getBuildStatTotals(equippedItems) {
+  const totals = new Map();
+  for (const { item } of equippedItems) {
+    for (const effect of item.effects) {
+      let label = BUILD_STAT_LABELS[effect.actionId];
+      if (effect.actionId === 1068) {
+        const elementCount = Number(effect.params?.[2] ?? 0);
+        label = `Dominio en ${elementCount || "varios"} elementos`;
+      }
+      if (!label) {
+        continue;
+      }
+      const value = getEffectValue(effect, item.level);
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+      totals.set(label, (totals.get(label) ?? 0) + value);
+    }
+  }
+  return [...totals.entries()].sort((first, second) => first[0].localeCompare(second[0], "es"));
+}
+
+function renderBuildSummary() {
+  if (!elements.buildSummary) {
+    return;
+  }
+  const equippedItems = getEquippedItems();
+  const warnings = getBuildWarnings(equippedItems);
+  if (equippedItems.length === 0) {
+    elements.buildSummary.innerHTML =
+      '<div class="catalog-empty">Todavía no has equipado objetos. Usa el catálogo para empezar un set.</div>';
+    return;
+  }
+  const statTotals = getBuildStatTotals(equippedItems);
+  elements.buildSummary.innerHTML = `
+    <div class="build-metrics">${equippedItems.length} piezas · ${equippedItems.filter(({ item }) => item.isEpic).length} épica · ${equippedItems.filter(({ item }) => item.isRelic).length} reliquia</div>
+    ${
+      statTotals.length > 0
+        ? `<div class="build-stat-list">${statTotals
+            .map(([label, value]) => `<span><strong>${formatNumber(value)}</strong> ${escapeHtml(label)}</span>`)
+            .join("")}</div>`
+        : ""
+    }
+    <div class="build-items">
+      ${equippedItems
+        .map(
+          ({ slotId, item }) => `
+            <div class="build-item">
+              <div>
+                <small>${escapeHtml(getEquipmentSlotLabel(slotId))}</small>
+                <strong>${escapeHtml(item.name)}</strong>
+                <span>Nv. ${item.level} · ${escapeHtml(item.rarityLabel)}</span>
+              </div>
+              <button class="remove-button" type="button" data-unequip-slot="${slotId}" aria-label="Quitar ${escapeHtml(item.name)}">×</button>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+    ${warnings.length > 0 ? `<p class="build-warning">${escapeHtml(warnings.join(" "))}</p>` : ""}
+  `;
+  elements.buildSummary.querySelectorAll("[data-unequip-slot]").forEach((button) => {
+    button.addEventListener("click", () => {
+      delete state.equippedItems[button.dataset.unequipSlot];
+      saveBuild();
+      renderBuildSummary();
+    });
+  });
+}
+
+function equipCatalogItem(event) {
+  const itemId = Number(event.currentTarget.dataset.equipItem);
+  const slotId = event.currentTarget.dataset.equipSlot;
+  const item = EQUIPMENT_CATALOG.find((entry) => entry.id === itemId);
+  if (!item || !item.positions.includes(slotId)) {
+    return;
+  }
+  state.equippedItems[slotId] = itemId;
+  saveBuild();
+  renderBuildSummary();
+  showFeedback(`«${item.name}» equipado en ${getEquipmentSlotLabel(slotId)}.`);
 }
 
 function getColorOptions(selectedColor) {
@@ -1653,6 +1935,38 @@ function renderReference() {
   }).join("");
 }
 
+function renderEquipmentGuide() {
+  const slot = document.querySelector("#guide-slot").value;
+  const doubleCount = COLOR_IDS.reduce((total, colorId) => total +
+    COLOR_DEFINITIONS[colorId].stats.filter((stat) => stat.doubleSlots.includes(slot)).length, 0);
+  document.querySelector("#guide-summary").textContent = `${slot}: ${doubleCount} estadísticas con bono doble. Consulta también dónde se duplican las demás para comparar piezas.`;
+  document.querySelector("#guide-colors").innerHTML = COLOR_IDS.map((colorId) => {
+    const color = COLOR_DEFINITIONS[colorId];
+    const stats = [...color.stats].sort((a, b) =>
+      Number(b.doubleSlots.includes(slot)) - Number(a.doubleSlots.includes(slot)));
+    const count = stats.filter((stat) => stat.doubleSlots.includes(slot)).length;
+    return `<article class="guide-color guide-color-${colorId}">
+      <h3><span class="color-shape color-shape-${colorId}" aria-hidden="true"></span>${color.label}</h3>
+      <p class="guide-note">${count ? `${count} opciones con ×2` : "Sin bonos dobles en esta pieza"}</p>
+      <ul class="guide-stats">${stats.map((stat) => {
+        const doubled = stat.doubleSlots.includes(slot);
+        return `<li class="guide-stat${doubled ? " guide-stat-double" : ""}">
+          <div><strong>${escapeHtml(stat.name)}</strong><span class="guide-multiplier">${doubled ? "×2 · Doble" : "×1 · Normal"}</span></div>
+          <small>${doubled ? "Bono doble en " + escapeHtml(slot) : "×2 en: " + escapeHtml(stat.doubleSlots.join(", "))}</small>
+        </li>`;
+      }).join("")}</ul>
+    </article>`;
+  }).join("");
+}
+
+function initEquipmentGuide() {
+  const select = document.querySelector("#guide-slot");
+  select.innerHTML = EQUIPMENT_SLOTS.map((slot) =>
+    `<option value="${escapeHtml(slot)}">${escapeHtml(slot)}</option>`).join("");
+  select.addEventListener("change", renderEquipmentGuide);
+  renderEquipmentGuide();
+}
+
 function calculateAndRender() {
   const result = calculateOptimization();
   state.result = result;
@@ -1700,6 +2014,25 @@ function bindEvents() {
     state.sublimationQuery = event.currentTarget.value;
     renderSublimationCatalog();
   });
+  elements.equipmentSearch.addEventListener("input", (event) => {
+    state.equipmentQuery = event.currentTarget.value;
+    renderEquipmentCatalog();
+  });
+  elements.equipmentSlotFilter.addEventListener("change", (event) => {
+    state.equipmentSlot = event.currentTarget.value;
+    renderEquipmentCatalog();
+  });
+  elements.equipmentMinLevel.addEventListener("input", (event) => {
+    const value = Number(event.currentTarget.value);
+    state.equipmentMinLevel = Number.isFinite(value) ? Math.max(0, Math.min(245, value)) : 0;
+    renderEquipmentCatalog();
+  });
+  document.querySelector("#clear-build").addEventListener("click", () => {
+    state.equippedItems = {};
+    saveBuild();
+    renderBuildSummary();
+    showFeedback("Set vaciado.");
+  });
   document.addEventListener("keydown", (event) => {
     const activeTagName = document.activeElement?.tagName;
     if (
@@ -1728,10 +2061,14 @@ function bindEvents() {
 function init() {
   getElements();
   bindEvents();
+  renderEquipmentSlotOptions();
   renderStatsControls();
   renderCombinationList();
   renderSublimationCatalog();
+  renderEquipmentCatalog();
+  renderBuildSummary();
   renderReference();
+  initEquipmentGuide();
   calculateAndRender();
 }
 
