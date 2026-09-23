@@ -200,6 +200,8 @@ const state = {
   slotValues: { ...DEFAULT_SLOT_VALUES },
   combinations: [],
   sublimationQuery: "",
+  sublimationPatternFilters: [{ id: 1, colors: ["", "", ""] }],
+  nextPatternFilterId: 2,
   equipmentQuery: "",
   equipmentSlot: "",
   equipmentMinLevel: 0,
@@ -231,6 +233,7 @@ function getElements() {
   elements.sublimationSearch = document.querySelector("#sublimation-search");
   elements.sublimationResults = document.querySelector("#sublimation-results");
   elements.sublimationCount = document.querySelector("#sublimation-count");
+  elements.sublimationPatternFilters = document.querySelector("#sublimation-pattern-filters");
   elements.equipmentSearch = document.querySelector("#equipment-search");
   elements.equipmentSlotFilter = document.querySelector("#equipment-slot-filter");
   elements.equipmentMinLevel = document.querySelector("#equipment-min-level");
@@ -278,13 +281,67 @@ function getSublimationMatches() {
   const terms = normalizeSearchText(state.sublimationQuery)
     .split(/\s+/)
     .filter(Boolean);
-  if (terms.length === 0) {
-    return SUBLIMATION_CATALOG;
-  }
+  const activePatterns = state.sublimationPatternFilters
+    .map((filter) => filter.colors)
+    .filter((colors) => colors.some(Boolean));
   return SUBLIMATION_CATALOG.filter((sublimation) => {
     const searchableText = normalizeSearchText(sublimation.searchText);
-    return terms.every((term) => searchableText.includes(term));
+    const matchesText = terms.every((term) => searchableText.includes(term));
+    const matchesPattern = activePatterns.length === 0 || activePatterns.some((colors) =>
+      sublimation.pattern.length === FIXED_PATTERN_SIZE &&
+      colors.every((color, index) => !color || sublimation.pattern[index] === color),
+    );
+    return matchesText && matchesPattern;
   });
+}
+
+function renderSublimationPatternFilters() {
+  elements.sublimationPatternFilters.innerHTML = state.sublimationPatternFilters
+    .map((filter, rowIndex) => `
+      <div class="pattern-filter-row" data-pattern-filter="${filter.id}">
+        <div class="pattern-filter-row-heading">
+          <strong>Combinación ${rowIndex + 1}</strong>
+          ${state.sublimationPatternFilters.length > 1
+            ? `<button class="pattern-filter-remove" type="button" data-remove-pattern="${filter.id}" aria-label="Quitar combinación ${rowIndex + 1}">Quitar</button>`
+            : ""}
+        </div>
+        <div class="pattern-filter-colors">
+          ${filter.colors.map((selectedColor, index) => `
+            <label class="pattern-filter-position">
+              <span>Color ${index + 1}</span>
+              <span class="pattern-filter-select-wrap">
+                <span class="pattern-filter-swatch${selectedColor ? ` color-shape color-shape-${selectedColor}` : ""}" aria-hidden="true"></span>
+                <select data-pattern-position="${index}">
+                  <option value="">Cualquiera</option>
+                  ${COLOR_IDS.map((colorId) => `<option value="${colorId}"${selectedColor === colorId ? " selected" : ""}>${COLOR_DEFINITIONS[colorId].label}</option>`).join("")}
+                </select>
+              </span>
+            </label>
+          `).join("")}
+        </div>
+      </div>
+    `).join("");
+}
+
+function updateSublimationPatternFilter(event) {
+  const select = event.target.closest("[data-pattern-position]");
+  if (!select) return;
+  const filterId = Number(select.closest("[data-pattern-filter]").dataset.patternFilter);
+  const filter = state.sublimationPatternFilters.find((item) => item.id === filterId);
+  if (!filter || (select.value && !COLOR_IDS.includes(select.value))) return;
+  filter.colors[Number(select.dataset.patternPosition)] = select.value;
+  select.parentElement.querySelector(".pattern-filter-swatch").className =
+    `pattern-filter-swatch${select.value ? ` color-shape color-shape-${select.value}` : ""}`;
+  renderSublimationCatalog();
+}
+
+function removeSublimationPatternFilter(event) {
+  const button = event.target.closest("[data-remove-pattern]");
+  if (!button) return;
+  const id = Number(button.dataset.removePattern);
+  state.sublimationPatternFilters = state.sublimationPatternFilters.filter((filter) => filter.id !== id);
+  renderSublimationPatternFilters();
+  renderSublimationCatalog();
 }
 
 function renderSublimationPattern(sublimation) {
@@ -316,23 +373,26 @@ function renderSublimationCatalog() {
     return;
   }
   const matches = getSublimationMatches();
-  const visibleMatches = matches.slice(0, SUBLIMATION_RESULTS_LIMIT);
+  const hasPatternFilter = state.sublimationPatternFilters.some((filter) =>
+    filter.colors.some(Boolean),
+  );
+  const visibleMatches = hasPatternFilter ? matches : matches.slice(0, SUBLIMATION_RESULTS_LIMIT);
   const resultLabel = matches.length === 1 ? "resultado" : "resultados";
   elements.sublimationCount.textContent = `${matches.length} ${resultLabel}`;
 
   if (matches.length === 0) {
     elements.sublimationResults.innerHTML = `
       <div class="catalog-empty">
-        No hay sublimaciones que coincidan con esa búsqueda.
-        Prueba con una palabra del efecto, una condición o "épica"/"reliquia".
+        No hay sublimaciones que coincidan con el texto y los colores elegidos.
+        Prueba otra combinación o limpia los filtros.
       </div>
     `;
     return;
   }
 
   const limitMessage =
-    matches.length > SUBLIMATION_RESULTS_LIMIT
-      ? `<p class="catalog-limit">Mostrando ${SUBLIMATION_RESULTS_LIMIT} de ${matches.length}. Sigue escribiendo para afinar la búsqueda.</p>`
+    !hasPatternFilter && matches.length > SUBLIMATION_RESULTS_LIMIT
+      ? `<p class="catalog-limit">Mostrando ${SUBLIMATION_RESULTS_LIMIT} de ${matches.length}. Filtra por texto o colores para afinar la búsqueda.</p>`
       : "";
   elements.sublimationResults.innerHTML = `
     ${visibleMatches
@@ -1999,10 +2059,13 @@ function resetDemo() {
   state.slotValues = { ...DEFAULT_SLOT_VALUES };
   state.combinations = [];
   state.sublimationQuery = "";
+  state.sublimationPatternFilters = [{ id: 1, colors: ["", "", ""] }];
+  state.nextPatternFilterId = 2;
   state.nextCombinationId = 1;
   elements.sublimationSearch.value = "";
   renderStatsControls();
   renderCombinationList();
+  renderSublimationPatternFilters();
   renderSublimationCatalog();
   calculateAndRender();
 }
@@ -2012,6 +2075,18 @@ function bindEvents() {
   document.querySelector("#clear-priorities").addEventListener("click", clearPriorities);
   elements.sublimationSearch.addEventListener("input", (event) => {
     state.sublimationQuery = event.currentTarget.value;
+    renderSublimationCatalog();
+  });
+  elements.sublimationPatternFilters.addEventListener("change", updateSublimationPatternFilter);
+  elements.sublimationPatternFilters.addEventListener("click", removeSublimationPatternFilter);
+  document.querySelector("#add-pattern-filter").addEventListener("click", () => {
+    state.sublimationPatternFilters.push({ id: state.nextPatternFilterId++, colors: ["", "", ""] });
+    renderSublimationPatternFilters();
+  });
+  document.querySelector("#clear-pattern-filters").addEventListener("click", () => {
+    state.sublimationPatternFilters = [{ id: 1, colors: ["", "", ""] }];
+    state.nextPatternFilterId = 2;
+    renderSublimationPatternFilters();
     renderSublimationCatalog();
   });
   elements.equipmentSearch.addEventListener("input", (event) => {
@@ -2064,6 +2139,7 @@ function init() {
   renderEquipmentSlotOptions();
   renderStatsControls();
   renderCombinationList();
+  renderSublimationPatternFilters();
   renderSublimationCatalog();
   renderEquipmentCatalog();
   renderBuildSummary();

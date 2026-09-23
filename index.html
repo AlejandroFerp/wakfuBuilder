@@ -8,10 +8,10 @@
       content="Planificador visual de ranuras, colores y estadisticas para optimizar una build."
     />
     <title>Color Forge | Optimizador de ranuras</title>
-    <link rel="stylesheet" href="styles.css?v=20260920-2" />
+    <link rel="stylesheet" href="styles.css?v=20260923-1" />
     <script defer src="data/game-data.js?v=20260919-1"></script>
     <script defer src="sublimations-data.js?v=20260920-2"></script>
-    <script defer src="app.js?v=20260920-2"></script>
+    <script defer src="app.js?v=20260923-1"></script>
   </head>
   <body>
     <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -125,8 +125,10 @@
               <span id="sublimation-count" class="section-counter">0 resultados</span>
             </div>
             <p class="section-help">
-              Busca por nombre, tipo, estado o cualquier texto del efecto. Las Épicas y
-              Reliquias no tienen combinación de colores.
+              Busca por nombre, tipo, estado o texto del efecto. Elige los colores en orden;
+              «Cualquiera» deja esa posición libre. Si añades varias combinaciones, se mostrarán
+              las sublimaciones que coincidan con cualquiera de ellas. Las Épicas y Reliquias
+              no tienen combinación de colores.
             </p>
             <label class="sublimation-search" for="sublimation-search">
               <span class="search-icon" aria-hidden="true">⌕</span>
@@ -138,6 +140,12 @@
               />
               <kbd>/</kbd>
             </label>
+            <div class="pattern-filter-heading">
+              <span>Filtrar por combinación</span>
+              <button id="add-pattern-filter" class="quick-button" type="button">+ Otra</button>
+            </div>
+            <div id="sublimation-pattern-filters" class="pattern-filter-list"></div>
+            <button id="clear-pattern-filters" class="pattern-filter-clear" type="button">Limpiar colores</button>
             <div id="sublimation-results" class="sublimation-results"></div>
           </section>
 
