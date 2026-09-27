@@ -45,7 +45,7 @@ const COLOR_DEFINITIONS = {
       },
       {
         name: "Placaje",
-        doubleSlots: ["Anillos"],
+        doubleSlots: ["Anillo 1", "Anillo 2"],
       },
       {
         name: "Dominio Elemental",
@@ -60,7 +60,7 @@ const COLOR_DEFINITIONS = {
     stats: [
       {
         name: "Esquiva",
-        doubleSlots: ["Anillos"],
+        doubleSlots: ["Anillo 1", "Anillo 2"],
       },
       {
         name: "Iniciativa",
@@ -92,11 +92,12 @@ const EQUIPMENT_SLOTS = [
   "Collar",
   "Coraza",
   "Hombreras",
-  "Anillos",
+  "Anillo 1",
+  "Anillo 2",
 ];
 const SOCKETS_PER_SLOT = 4;
 const FIXED_PATTERN_SIZE = 3;
-const MAX_COMBINATIONS = 9;
+const MAX_COMBINATIONS = EQUIPMENT_SLOTS.length;
 const OPTIMIZER_RESTARTS = 24;
 const NUMBER_FORMATTER = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 0,
@@ -228,6 +229,7 @@ const elements = {};
 function getElements() {
   elements.feedback = document.querySelector("#feedback");
   elements.statsControls = document.querySelector("#stats-controls");
+  elements.combinationCount = document.querySelector("#combination-count");
   elements.combinationList = document.querySelector("#combination-list");
   elements.priorityCount = document.querySelector("#priority-count");
   elements.sublimationSearch = document.querySelector("#sublimation-search");
@@ -427,6 +429,7 @@ function renderSublimationCatalog() {
             </div>
             <div class="catalog-pattern-row">
               ${renderSublimationPattern(sublimation)}
+              ${sublimation.kind === "pattern" ? renderSublimationTotal(sublimation) : ""}
             </div>
             <div class="catalog-effect">
               <strong>${escapeHtml(sublimation.effectName)}</strong>
@@ -801,7 +804,28 @@ function renderStatsControls() {
   });
 }
 
+function getSublimationTotal(sublimation) {
+  return state.combinations.reduce((total, combination) => {
+    const selected = SUBLIMATION_CATALOG.find((item) => item.id === combination.sublimationId);
+    const sameState = selected && (sublimation.stateId != null
+      ? selected.stateId === sublimation.stateId
+      : selected.id === sublimation.id);
+    return total + (sameState ? selected.level : 0);
+  }, 0);
+}
+
+function renderSublimationTotal(sublimation) {
+  const total = getSublimationTotal(sublimation);
+  const maximum = sublimation.maxLevel;
+  return `<span class="sublimation-total${maximum && total > maximum ? " is-over-limit" : ""}">
+    Estado: ${total}/${maximum ?? "máximo sin verificar"}${maximum && total > maximum ? " · Supera el máximo" : ""}
+  </span>`;
+}
+
 function renderCombinationList() {
+  elements.combinationCount.textContent = `${state.combinations.length}/${MAX_COMBINATIONS}`;
+  document.querySelector("#add-combination").disabled = state.combinations.length >= MAX_COMBINATIONS;
+  renderSublimationCatalog();
   if (state.combinations.length === 0) {
     elements.combinationList.innerHTML = `
       <div class="empty-combinations">
@@ -814,6 +838,7 @@ function renderCombinationList() {
 
   elements.combinationList.innerHTML = state.combinations
     .map((combination, index) => {
+      const selected = SUBLIMATION_CATALOG.find((item) => item.id === combination.sublimationId);
       const colorInputs = combination.colors
         .map((colorId, colorIndex) => {
           const color = COLOR_DEFINITIONS[colorId];
@@ -836,6 +861,9 @@ function renderCombinationList() {
       return `
         <div class="combination-row" data-combination-row="${combination.id}">
           <span class="combination-index">${String(index + 1).padStart(2, "0")}</span>
+          <div class="combination-details">
+            <div class="combination-name">${escapeHtml(combination.colors.map(getColorLabel).join(" · "))}${selected ? ` (${escapeHtml(selected.name)})` : ""}</div>
+            ${selected ? renderSublimationTotal(selected) : ""}
           <div class="combination-inputs">
             <label class="select-label">
               <select
@@ -847,6 +875,7 @@ function renderCombinationList() {
               </select>
             </label>
             ${colorInputs}
+          </div>
           </div>
           <button
             class="remove-button"
@@ -886,7 +915,10 @@ function handleCombinationChange(event) {
     const colorIndex = Number(input.dataset.colorIndex);
     combination.colors[colorIndex] = input.value;
     input.dataset.color = input.value;
+    delete combination.sublimationId;
+    delete combination.sublimationName;
   }
+  renderCombinationList();
   calculateAndRender();
 }
 
@@ -1785,6 +1817,7 @@ function renderSlotGrid(result) {
   elements.slotGrid.innerHTML = result.assignments
     .map((assignment, index) => {
       const isFixed = Boolean(assignment.combinationId);
+      const combination = state.combinations.find((item) => item.id === assignment.combinationId);
       const socketMarkup = assignment.sockets
         .map((socket) => {
           const color = COLOR_DEFINITIONS[socket.colorId];
@@ -1814,7 +1847,7 @@ function renderSlotGrid(result) {
       const patternMarkup = isFixed
         ? `
           <div class="fixed-pattern">
-            <span>Sublimación</span>
+            <span>${escapeHtml(combination?.sublimationName ?? "Sublimación")}</span>
             <span class="fixed-pattern-dots" aria-label="Sublimación de colores">
               ${assignment.fixedColors
                 .map(

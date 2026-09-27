@@ -99,7 +99,7 @@ a {
 
 .topbar {
   display: flex;
-  width: min(1440px, calc(100% - 64px));
+  width: calc(100% - 40px);
   align-items: center;
   justify-content: space-between;
   margin: 0 auto;
@@ -181,7 +181,7 @@ a {
 }
 
 .app-shell {
-  width: min(1440px, calc(100% - 64px));
+  width: calc(100% - 40px);
   margin: 0 auto;
 }
 
@@ -413,7 +413,7 @@ a {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 350px) minmax(0, 1fr);
+  grid-template-columns: minmax(350px, 400px) minmax(0, 1fr);
   align-items: start;
   gap: 18px;
   padding: 28px 0 58px;
@@ -2010,7 +2010,7 @@ a {
 
 .footer {
   display: flex;
-  width: min(1440px, calc(100% - 64px));
+  width: calc(100% - 40px);
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -2045,7 +2045,7 @@ a {
   .topbar,
   .app-shell,
   .footer {
-    width: min(100% - 32px, 700px);
+    width: calc(100% - 24px);
   }
 
   .hero {
@@ -2158,3 +2158,9 @@ a {
     animation-duration: 0.01ms !important;
   }
 }
+
+.combination-details { min-width: 0; display: grid; gap: 8px; }
+.combination-name { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.sublimation-total { color: var(--accent); font-size: 12px; font-weight: 600; }
+.sublimation-total.is-over-limit { color: var(--danger); }
+.add-button:disabled { opacity: 0.5; cursor: default; }
