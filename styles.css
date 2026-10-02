@@ -2164,3 +2164,17 @@ a {
 .sublimation-total { color: var(--accent); font-size: 12px; font-weight: 600; }
 .sublimation-total.is-over-limit { color: var(--danger); }
 .add-button:disabled { opacity: 0.5; cursor: default; }
+
+[hidden] { display: none !important; }
+.compact-topbar { position: sticky; top: 0; z-index: 10; padding: 10px 0; gap: 16px; background: var(--bg); }
+.page-tabs { display: flex; gap: 6px; }
+.page-tab { border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; background: transparent; color: var(--muted-strong); }
+.page-tab[aria-selected="true"] { color: var(--accent); background: var(--accent-dark); border-color: var(--accent); }
+.resistance-rule { margin: 0 0 16px; color: var(--muted-strong); font-size: 12px; line-height: 1.6; }
+#guide-panel { padding-bottom: 24px; }
+#guide-panel .reference-card { margin-top: 18px; }
+@media (max-width: 610px) {
+  .compact-topbar { flex-wrap: wrap; gap: 8px; }
+  .page-tabs { width: 100%; }
+  .page-tab { flex: 1; padding: 10px 8px; font-size: 12px; }
+}

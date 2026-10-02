@@ -8,6 +8,14 @@ Abre `index.html` en un navegador. La aplicación permite buscar sublimaciones y
 
 Los sets en preparación se guardan únicamente en `localStorage` del navegador. El catálogo incluye recetas e ingredientes extraídos del CDN oficial. No infiere precios, drops ni rutas no verificadas; cada ficha también enlaza a MethodWakfu para comprobar esas vías de obtención.
 
+Las pestañas superiores separan el optimizador de la guía de encantamientos y su referencia de bonus.
+
+El cálculo reserva primero todos los huecos que permiten resistencia ×2: cinturón verde, botas rojas, hombreras y capa azules, y coraza como comodín. Los dominios seleccionados solo se asignan donde reciben ×2. Todos los huecos restantes se dedican a resistencias, también ×1, equilibrando los cuatro elementos. Nunca asigna dominios ×1, vida, iniciativa, esquiva ni placaje. El selector solo contiene dominios. Las resistencias usan una base común de 100 para comparar el reparto; los valores base de los dominios se pueden ajustar.
+
+Las sublimaciones conservan el orden de sus colores y sus destinos explícitos. Para destinos automáticos, el motor maximiza primero los huecos de resistencia ×2 y después mejora el equilibrio intercambiando destinos automáticos. No promete una búsqueda exhaustiva de todas las combinaciones globales.
+
+Para ejecutar las pruebas del reparto: `npm test`.
+
 ## Actualizar datos
 
 Se necesita Node 18 o superior.

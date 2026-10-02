@@ -8,62 +8,25 @@
       content="Planificador visual de ranuras, colores y estadisticas para optimizar una build."
     />
     <title>Color Forge | Optimizador de ranuras</title>
-    <link rel="stylesheet" href="styles.css?v=20260927-1" />
+    <link rel="stylesheet" href="styles.css?v=20261002-2" />
     <script defer src="data/game-data.js?v=20260919-1"></script>
-    <script defer src="sublimations-data.js?v=20260927-1"></script>
-    <script defer src="app.js?v=20260927-1"></script>
+    <script defer src="sublimations-data.js?v=20261002-2"></script>
+    <script defer src="app.js?v=20261002-2"></script>
   </head>
   <body>
     <div class="ambient ambient-one" aria-hidden="true"></div>
     <div class="ambient ambient-two" aria-hidden="true"></div>
 
-    <header class="topbar">
-      <a class="brand" href="#" aria-label="Color Forge, inicio">
-        <span class="brand-mark" aria-hidden="true">
-          <span class="brand-mark-core"></span>
-        </span>
-        <span>
-          <span class="brand-kicker">SLOT PLANNER</span>
-          <strong>COLOR FORGE</strong>
-        </span>
-      </a>
-      <div class="topbar-status">
-        <span class="status-indicator" aria-hidden="true"></span>
-        <span>Motor local activo</span>
-        <span class="status-separator">/</span>
-        <span>10 piezas · 4 ranuras</span>
-      </div>
+    <header class="topbar compact-topbar">
+      <a class="brand" href="#" aria-label="Color Forge, inicio"><strong>COLOR FORGE</strong></a>
+      <nav class="page-tabs" role="tablist" aria-label="Secciones">
+        <button id="planner-tab" class="page-tab" type="button" role="tab" aria-selected="true" aria-controls="planner-panel">Optimizador</button>
+        <button id="guide-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="guide-panel" tabindex="-1">Guía de encantamientos</button>
+      </nav>
     </header>
 
     <main class="app-shell">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">OPTIMIZADOR DE BUILD</p>
-          <h1>Encuentra el reparto de colores que <em>mejor rinde</em>.</h1>
-          <p class="hero-description">
-            Prioriza tus stats, define sublimaciones de tres colores y deja que el motor
-            encuentre dónde colocar cada combinacion para aprovechar los bonus dobles.
-          </p>
-          <div class="hero-tags" aria-label="Resumen de funcionamiento">
-            <span class="hero-tag"><span class="color-shape color-shape-red"></span> Stats por color</span>
-            <span class="hero-tag"><span class="color-shape color-shape-blue"></span> Bonus x2 por slot</span>
-            <span class="hero-tag"><span class="color-shape color-shape-green"></span> Sublimaciones</span>
-          </div>
-        </div>
-        <div class="hero-orbit" aria-hidden="true">
-          <div class="orbit orbit-large"></div>
-          <div class="orbit orbit-small"></div>
-          <div class="orbit-core">
-            <span class="orbit-rune">R</span>
-            <span class="orbit-rune">B</span>
-            <span class="orbit-rune">V</span>
-          </div>
-          <span class="orbit-star star-one"></span>
-          <span class="orbit-star star-two"></span>
-          <span class="orbit-star star-three"></span>
-        </div>
-      </section>
-
+      <div id="planner-panel" role="tabpanel" aria-labelledby="planner-tab">
       <div id="feedback" class="feedback is-hidden" role="status" aria-live="polite"></div>
 
       <section class="workspace-grid">
@@ -80,15 +43,14 @@
             <div class="section-heading">
               <div>
                 <span class="section-number">01</span>
-                <h3>Prioriza tus stats</h3>
+                <h3>Dominios ×2</h3>
               </div>
               <span id="priority-count" class="section-counter">0 activas</span>
             </div>
             <p class="section-help">
-              Los Dominios representan ataque/ofensiva, las Resistencias defensa y el
-              resto de stats son Extras. El cálculo evalúa <strong>todas</strong> las
-              prioridades activas a la vez: el peso de cada grupo es el promedio de sus
-              barras y el multiplicador aplica Ranura base × 1 o Ranura base × 2.
+              Primero se aprovechan las resistencias ×2. Los dominios elegidos solo
+              ocupan huecos con su bonus ×2; todos los demás se dedican a resistencias,
+              equilibrando los cuatro elementos.
             </p>
             <div class="quick-actions">
               <button id="clear-priorities" class="quick-button" type="button">
@@ -234,7 +196,7 @@
             <article class="metric-card">
               <span class="metric-icon metric-icon-score" aria-hidden="true">↗</span>
               <div>
-                <span class="metric-label">Puntuacion total</span>
+                <span class="metric-label">Dominios ×2</span>
                 <strong id="metric-score">0 pts</strong>
                 <small id="metric-score-caption">Ranura base × multiplicador × prioridad</small>
               </div>
@@ -272,7 +234,7 @@
                 <h2>Distribucion por slot</h2>
               </div>
               <div class="score-pill">
-                <span class="score-pill-label">BUILD SCORE</span>
+                <span class="score-pill-label">DOMINIOS ×2</span>
                 <strong id="score-pill">0</strong>
               </div>
             </div>
@@ -284,6 +246,8 @@
               </p>
               <span class="double-legend"><strong>×2</strong> bonus doble aplicado</span>
             </div>
+            <p class="resistance-rule">Resistencias ×2: cinturón verde · botas rojas · hombreras y capa azules.
+              La coraza completa los elementos que falten. Se respetan los colores de tus sublimaciones.</p>
             <div id="slot-grid" class="slot-grid"></div>
           </article>
 
@@ -312,18 +276,10 @@
             </article>
           </div>
 
-          <details class="panel reference-card" open>
-            <summary>
-              <span>
-                <span class="eyebrow">REFERENCIA</span>
-                <strong>Stats disponibles y slots con bonus doble</strong>
-              </span>
-              <span class="details-chevron" aria-hidden="true">⌄</span>
-            </summary>
-            <div id="color-reference" class="reference-grid"></div>
-          </details>
         </section>
       </section>
+      </div>
+      <div id="guide-panel" role="tabpanel" aria-labelledby="guide-tab" hidden>
       <section class="panel equipment-guide" aria-labelledby="equipment-guide-title">
         <p class="eyebrow">GUÍA DE ENCANTAMIENTOS</p>
         <h2 id="equipment-guide-title">¿Qué colores me convienen en esta pieza?</h2>
@@ -335,6 +291,17 @@
         <div id="guide-colors" class="guide-colors"></div>
         <p class="guide-note">Cada hueco aporta una de las estadísticas de su color. Puedes repetir colores; el bono depende de la estadística elegida y de la pieza. Esta guía usa las mismas reglas que el optimizador.</p>
       </section>
+          <details class="panel reference-card" open>
+            <summary>
+              <span>
+                <span class="eyebrow">REFERENCIA</span>
+                <strong>Stats disponibles y slots con bonus doble</strong>
+              </span>
+              <span class="details-chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div id="color-reference" class="reference-grid"></div>
+          </details>
+      </div>
     </main>
 
     <footer class="footer">

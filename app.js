@@ -98,7 +98,12 @@ const EQUIPMENT_SLOTS = [
 const SOCKETS_PER_SLOT = 4;
 const FIXED_PATTERN_SIZE = 3;
 const MAX_COMBINATIONS = EQUIPMENT_SLOTS.length;
-const OPTIMIZER_RESTARTS = 24;
+const RESISTANCE_SLOT_COLORS = {
+  "Cinturón": "green",
+  Botas: "red",
+  Hombreras: "blue",
+  Capa: "blue",
+};
 const NUMBER_FORMATTER = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 0,
 });
@@ -158,29 +163,15 @@ const RESISTANCE_STATS = new Set(
   ALL_STATS.filter((statName) => statName.startsWith("Resistencia")),
 );
 
-const EXTRA_STATS = new Set(
-  ALL_STATS.filter(
-    (statName) =>
-      !DOMAIN_STATS.has(statName) && !RESISTANCE_STATS.has(statName),
-  ),
-);
+const EXTRA_STATS = new Set(["Esquiva", "Placaje"]);
+const SELECTABLE_STATS = [...DOMAIN_STATS];
 
 const STAT_GROUP_LABELS = {
   attack: "Ataque · Dominios",
   defense: "Defensa · Resistencias",
   extras: "Extras",
 };
-const STAT_GROUP_ORDER = {
-  attack: 0,
-  defense: 1,
-  extras: 2,
-};
 
-const STAT_ORDER = [
-  ...ALL_STATS.filter((statName) => DOMAIN_STATS.has(statName)),
-  ...ALL_STATS.filter((statName) => RESISTANCE_STATS.has(statName)),
-  ...ALL_STATS.filter((statName) => EXTRA_STATS.has(statName)),
-];
 
 const DEFAULT_WEIGHTS = Object.fromEntries(
   ALL_STATS.map((statName) => [statName, 0]),
@@ -194,9 +185,6 @@ const state = {
   weights: {
     ...DEFAULT_WEIGHTS,
     "Dominio Cuerpo a Cuerpo": 100,
-    "Puntos de Vida (PdV)": 65,
-    Esquiva: 35,
-    "Resistencia a Tierra": 25,
   },
   slotValues: { ...DEFAULT_SLOT_VALUES },
   combinations: [],
@@ -717,12 +705,12 @@ function getTargetOptions(selectedTarget) {
 }
 
 function renderStatsControls() {
-  elements.statsControls.innerHTML = STAT_ORDER.map((statName, statIndex) => {
+  elements.statsControls.innerHTML = SELECTABLE_STATS.map((statName, statIndex) => {
     const weight = state.weights[statName] ?? 0;
     const slotValue = state.slotValues[statName] ?? 0;
     const statGroup = getStatGroup(statName);
     const previousGroup =
-      statIndex > 0 ? getStatGroup(STAT_ORDER[statIndex - 1]) : null;
+      statIndex > 0 ? getStatGroup(SELECTABLE_STATS[statIndex - 1]) : null;
     const groupHeading =
       statGroup !== previousGroup
         ? `<div class="stat-group-heading">${STAT_GROUP_LABELS[statGroup]}</div>`
@@ -967,67 +955,55 @@ function isResistanceStat(statName) {
   return RESISTANCE_STATS.has(statName);
 }
 
-function getCandidateColors() {
-  return COLOR_IDS;
+// Compare in priority order, without allowing damage weights to buy away resistance.
+function compareObjectives(first, second) {
+  for (let index = 0; index < first.length; index += 1) {
+    if (first[index] !== second[index]) return first[index] > second[index] ? 1 : -1;
+  }
+  return 0;
 }
 
-function compareChoices(first, second) {
-  if (!second) {
-    return first;
-  }
-  if (first.optimizationScore !== second.optimizationScore) {
-    return first.optimizationScore > second.optimizationScore ? first : second;
-  }
-  if (first.isDouble !== second.isDouble) {
-    return first.isDouble ? first : second;
-  }
-  if (first.priority !== second.priority) {
-    return first.priority > second.priority ? first : second;
-  }
-  return first.colorId < second.colorId ? first : second;
+function getChoiceObjective(choice, slotName) {
+  const resistance = isResistanceStat(choice.statName);
+  return [
+    Number(resistance && choice.isDouble),
+    Number(isDomainStat(choice.statName) && choice.isDouble),
+    resistance ? choice.multiplier : 0,
+    Number(resistance && choice.colorId === RESISTANCE_SLOT_COLORS[slotName]),
+    choice.score,
+  ];
 }
 
 function getChoicesForColor(colorId, slotName) {
-  return getStatsForColor(colorId).map((statName) => {
-    const priority = state.weights[statName] ?? 0;
-    const slotValue = state.slotValues[statName] ?? 0;
-    const isDouble = isDoubleStat(statName, slotName);
-    const multiplier = isDouble ? 2 : 1;
-    const realValue = slotValue * multiplier;
-    const optimizationScore = isDomainStat(statName)
-      ? priority * realValue
-      : priority * multiplier;
-    return {
-      colorId,
-      statName,
-      priority,
-      slotValue,
-      multiplier,
-      isDouble,
-      realValue,
-      optimizationScore,
-      score: priority * realValue,
-    };
-  });
+  return getStatsForColor(colorId)
+    .filter((name) => isResistanceStat(name) ||
+      (isDomainStat(name) && isDoubleStat(name, slotName) &&
+        state.weights[name] > 0 && state.slotValues[name] > 0))
+    .map((statName) => {
+      const resistance = isResistanceStat(statName);
+      const priority = resistance ? 0 : state.weights[statName] ?? 0;
+      const slotValue = resistance ? 100 : state.slotValues[statName] ?? 0;
+      const isDouble = isDoubleStat(statName, slotName);
+      const multiplier = isDouble ? 2 : 1;
+      const realValue = slotValue * multiplier;
+      return { colorId, statName, priority, slotValue, multiplier, isDouble,
+        realValue, score: priority * realValue };
+    });
 }
 
-function getChoicesForAllowedColors(colorIds, slotName) {
-  const choices = colorIds.flatMap((colorId) =>
-    getChoicesForColor(colorId, slotName),
-  );
-  const prioritizedChoices = choices.filter((choice) => choice.priority > 0);
-  return prioritizedChoices.length > 0 ? prioritizedChoices : choices;
+function getBestChoice(colorIds, slotName) {
+  return colorIds.flatMap((color) => getChoicesForColor(color, slotName))
+    .reduce((best, choice) => !best || compareObjectives(
+      getChoiceObjective(choice, slotName), getChoiceObjective(best, slotName),
+    ) > 0 ? choice : best, null);
 }
 
 function getBestChoiceForColor(colorId, slotName) {
-  const candidates = getChoicesForColor(colorId, slotName);
-  return candidates.reduce((best, candidate) => compareChoices(candidate, best), null);
+  return getBestChoice([colorId], slotName);
 }
 
 function getBestFreeChoice(slotName) {
-  return getCandidateColors()
-    .map((colorId) => getBestChoiceForColor(colorId, slotName))
-    .reduce((best, candidate) => compareChoices(candidate, best), null);
+  return getBestChoice(COLOR_IDS, slotName);
 }
 
 function getMaxPatternWindowStart(combination) {
@@ -1063,10 +1039,6 @@ function createAssignment(slotName, combination, windowStart = 0) {
     combinationId: combination?.id ?? null,
     fixedColors: combination?.colors ?? [],
     patternStart: combination ? windowStart : null,
-    optimizationScore: sockets.reduce(
-      (total, socket) => total + socket.optimizationScore,
-      0,
-    ),
     score: sockets.reduce((total, socket) => total + socket.score, 0),
   };
 }
@@ -1085,8 +1057,8 @@ function createBestAssignment(slotName, combination) {
     const candidate = createAssignment(slotName, combination, windowStart);
     if (
       !best ||
-      candidate.optimizationScore > best.optimizationScore ||
-      (candidate.optimizationScore === best.optimizationScore && windowStart === preferredStart)
+      compareObjectives(getAssignmentObjective(candidate), getAssignmentObjective(best)) > 0 ||
+      (compareObjectives(getAssignmentObjective(candidate), getAssignmentObjective(best)) === 0 && windowStart === preferredStart)
     ) {
       best = candidate;
     }
@@ -1095,10 +1067,6 @@ function createBestAssignment(slotName, combination) {
 }
 
 function recalculateAssignment(assignment) {
-  assignment.optimizationScore = assignment.sockets.reduce(
-    (total, socket) => total + socket.optimizationScore,
-    0,
-  );
   assignment.score = assignment.sockets.reduce(
     (total, socket) => total + socket.score,
     0,
@@ -1118,514 +1086,122 @@ function getStatGroup(statName) {
   return null;
 }
 
-function getCombatObjective(assignments, config) {
-  const groupTotals = Object.fromEntries(
-    config.activeGroups.map((group) => [group, 0]),
-  );
-  const resistanceTotals = Object.fromEntries(
-    config.activeResistanceStats.map((statName) => [statName, 0]),
-  );
-  let weightedScore = 0;
-  let prioritizedSocketCount = 0;
+function getAssignmentObjective(assignment) {
+  return assignment.sockets.reduce((total, socket) => {
+    const score = getChoiceObjective(socket, assignment.slotName);
+    return total.map((value, index) => value + score[index]);
+  }, [0, 0, 0, 0, 0]);
+}
 
+function getResistanceCounts(assignments) {
+  const totals = Object.fromEntries([...RESISTANCE_STATS].map((name) => [name, 0]));
   for (const assignment of assignments) {
     for (const socket of assignment.sockets) {
-      weightedScore += socket.score;
-      prioritizedSocketCount += Number(socket.priority > 0);
-      const group = getStatGroup(socket.statName);
-      if (group && config.activeGroupSet.has(group)) {
-        groupTotals[group] += socket.realValue;
-      }
-      if (group === "defense" && config.activeResistanceSet.has(socket.statName)) {
-        resistanceTotals[socket.statName] += socket.realValue;
-      }
+      if (isResistanceStat(socket.statName)) totals[socket.statName] += socket.multiplier;
     }
   }
-
-  const missingGroups = config.activeGroups.reduce(
-    (total, group) => total + Number(groupTotals[group] === 0),
-    0,
-  );
-  const groupRatios =
-    missingGroups === 0
-      ? config.activeGroups.map(
-          (group) => groupTotals[group] / config.groupWeights[group],
-        )
-      : [];
-  const groupError =
-    missingGroups === 0
-      ? Math.max(...groupRatios) - Math.min(...groupRatios)
-      : Infinity;
-  const resistanceError =
-    config.activeResistanceStats.length > 1 && groupTotals.defense > 0
-      ? config.activeResistanceStats.reduce(
-          (total, statName) =>
-            total +
-            Math.abs(
-              resistanceTotals[statName] / groupTotals.defense -
-                config.resistanceTarget[statName],
-            ),
-          0,
-        )
-      : config.activeResistanceStats.length > 1
-        ? Infinity
-        : 0;
-
-  return {
-    missingGroups,
-    groupError,
-    resistanceError,
-    prioritizedSocketCount,
-    weightedScore,
-  };
+  return Object.values(totals);
 }
 
-function compareCombatObjectives(first, second) {
-  if (first.missingGroups !== second.missingGroups) {
-    return first.missingGroups < second.missingGroups ? 1 : -1;
-  }
-  if (first.groupError !== second.groupError) {
-    return first.groupError < second.groupError ? 1 : -1;
-  }
-  if (first.resistanceError !== second.resistanceError) {
-    return first.resistanceError < second.resistanceError ? 1 : -1;
-  }
-  if (first.prioritizedSocketCount !== second.prioritizedSocketCount) {
-    return first.prioritizedSocketCount > second.prioritizedSocketCount ? 1 : -1;
-  }
-  if (first.weightedScore !== second.weightedScore) {
-    return first.weightedScore > second.weightedScore ? 1 : -1;
-  }
-  return 0;
+function getResistanceBalance(counts) {
+  return [Math.min(...counts), -counts.reduce((total, value) => total + value * value, 0)];
 }
 
-function balanceResistanceDistribution(assignments, config) {
-  if (config.activeResistanceStats.length < 2) {
-    return;
-  }
-
-  const resistanceSockets = assignments.flatMap((assignment) =>
-    assignment.sockets
-      .filter((socket) => config.activeResistanceSet.has(socket.statName))
-      .map((socket) => ({ assignment, socket })),
-  );
-  const currentDefenseTotal = resistanceSockets.reduce(
-    (total, entry) => total + entry.socket.realValue,
-    0,
-  );
-  if (resistanceSockets.length === 0 || currentDefenseTotal === 0) {
-    return;
-  }
-
-  const targetTotals = Object.fromEntries(
-    config.activeResistanceStats.map((statName) => [
-      statName,
-      currentDefenseTotal * config.resistanceTarget[statName],
-    ]),
-  );
-  const totals = Object.fromEntries(
-    config.activeResistanceStats.map((statName) => [statName, 0]),
-  );
-
-  resistanceSockets.sort((first, second) => {
-    if (first.socket.isFixed !== second.socket.isFixed) {
-      return first.socket.isFixed ? -1 : 1;
-    }
-    return first.socket.realValue - second.socket.realValue;
-  });
-
-  for (const entry of resistanceSockets) {
-    const allowedColorIds = entry.socket.isFixed
-      ? [entry.socket.colorId]
-      : COLOR_IDS;
-    const choices = allowedColorIds
-      .flatMap((colorId) => getChoicesForColor(colorId, entry.assignment.slotName))
-      .filter((choice) => config.activeResistanceSet.has(choice.statName));
-    let bestChoice = null;
-    let bestBalanceError = Infinity;
-
-    for (const choice of choices) {
-      const projectedError = config.activeResistanceStats.reduce(
-        (total, statName) => {
-          const projectedTotal =
-            totals[statName] +
-            (choice.statName === statName ? choice.realValue : 0);
-          return (
-            total +
-            Math.abs(projectedTotal / targetTotals[statName] - 1)
-          );
-        },
-        0,
-      );
-      if (
-        !bestChoice ||
-        projectedError < bestBalanceError ||
-        (projectedError === bestBalanceError &&
-          choice.optimizationScore > bestChoice.optimizationScore)
-      ) {
-        bestChoice = choice;
-        bestBalanceError = projectedError;
-      }
-    }
-
-    if (!bestChoice) {
-      continue;
-    }
-    const socketIndex = entry.socket.socketIndex;
-    const isFixed = entry.socket.isFixed;
-    Object.assign(entry.socket, bestChoice, { socketIndex, isFixed });
-    totals[bestChoice.statName] += bestChoice.realValue;
-  }
-
-  refineResistanceDistribution(assignments, config);
-  improveResistancePairs(assignments, config);
-}
-
-function getResistanceTotals(assignments, config) {
-  const totals = Object.fromEntries(
-    config.activeResistanceStats.map((statName) => [statName, 0]),
-  );
+// Keep doubled damage and resistance bonuses. Balance all remaining resistance
+// sockets, including single bonuses, without changing the sublimation colors.
+function optimizeCombatAssignments(assignments, balanceCache = new Map()) {
+  const names = [...RESISTANCE_STATS];
+  const entries = [];
   for (const assignment of assignments) {
     for (const socket of assignment.sockets) {
-      if (config.activeResistanceSet.has(socket.statName)) {
-        totals[socket.statName] += socket.realValue;
-      }
+      if (!isResistanceStat(socket.statName)) continue;
+      const colors = socket.isFixed ? [socket.colorId] : COLOR_IDS;
+      const resistanceOptions = colors.flatMap((color) => getChoicesForColor(color, assignment.slotName))
+        .filter((choice) => isResistanceStat(choice.statName));
+      const multiplier = Math.max(...resistanceOptions.map((choice) => choice.multiplier));
+      const options = resistanceOptions.filter((choice) => choice.multiplier === multiplier);
+      const key = `${multiplier}:${options.map((choice) => names.indexOf(choice.statName)).join(",")}`;
+      entries.push({ socket, options, key });
     }
   }
-  return totals;
-}
-
-function getResistanceBalanceError(totals, targetTotals, config) {
-  return config.activeResistanceStats.reduce(
-    (total, statName) =>
-      total + Math.abs(totals[statName] / targetTotals[statName] - 1),
-    0,
-  );
-}
-
-function refineResistanceDistribution(assignments, config) {
-  const resistanceEntries = assignments.flatMap((assignment) =>
-    assignment.sockets
-      .filter((socket) => config.activeResistanceSet.has(socket.statName))
-      .map((socket) => ({ assignment, socket })),
-  );
-  const currentDefenseTotal = resistanceEntries.reduce(
-    (total, entry) => total + entry.socket.realValue,
-    0,
-  );
-  if (resistanceEntries.length === 0 || currentDefenseTotal === 0) {
-    return;
-  }
-
-  const targetTotals = Object.fromEntries(
-    config.activeResistanceStats.map((statName) => [
-      statName,
-      currentDefenseTotal * config.resistanceTarget[statName],
-    ]),
-  );
-  let currentError = getResistanceBalanceError(
-    getResistanceTotals(assignments, config),
-    targetTotals,
-    config,
-  );
-
-  for (let pass = 0; pass < 12; pass += 1) {
-    let changed = false;
-    for (const entry of resistanceEntries) {
-      const originalSocket = { ...entry.socket };
-      const allowedColorIds = entry.socket.isFixed
-        ? [entry.socket.colorId]
-        : COLOR_IDS;
-      const choices = allowedColorIds
-        .flatMap((colorId) =>
-          getChoicesForColor(colorId, entry.assignment.slotName),
-        )
-        .filter((choice) => config.activeResistanceSet.has(choice.statName));
-      let bestChoice = null;
-      let bestError = currentError;
-
-      for (const choice of choices) {
-        Object.assign(entry.socket, originalSocket);
-        Object.assign(entry.socket, choice, {
-          socketIndex: originalSocket.socketIndex,
-          isFixed: originalSocket.isFixed,
-        });
-        const candidateTotals = getResistanceTotals(assignments, config);
-        const candidateError = getResistanceBalanceError(
-          candidateTotals,
-          targetTotals,
-          config,
-        );
-        if (
-          candidateError < bestError ||
-          (candidateError === bestError &&
-            choice.optimizationScore >
-              (bestChoice?.optimizationScore ??
-                originalSocket.optimizationScore))
-        ) {
-          bestChoice = choice;
-          bestError = candidateError;
+  // Equivalent color constraints share a result across automatic destination swaps.
+  entries.sort((first, second) => first.options.length - second.options.length || first.key.localeCompare(second.key));
+  const cacheKey = entries.map((entry) => entry.key).join(";");
+  let selected = balanceCache.get(cacheKey);
+  if (!selected) {
+    const counts = [0, 0, 0, 0];
+    const flexible = entries.filter((entry) => entry.options.length > 1);
+    for (const entry of entries.filter((item) => item.options.length === 1)) {
+      const choice = entry.options[0];
+      counts[names.indexOf(choice.statName)] += choice.multiplier;
+    }
+    let distributions = new Map([[counts.join(","), { counts, parent: null }]]);
+    for (const entry of flexible) {
+      const next = new Map();
+      for (const distribution of distributions.values()) {
+        for (const [optionIndex, choice] of entry.options.entries()) {
+          const projected = [...distribution.counts];
+          projected[names.indexOf(choice.statName)] += choice.multiplier;
+          const key = projected.join(",");
+          if (!next.has(key)) next.set(key, { counts: projected, parent: distribution, optionIndex });
         }
       }
-
-      if (bestChoice) {
-        Object.assign(entry.socket, bestChoice, {
-          socketIndex: originalSocket.socketIndex,
-          isFixed: originalSocket.isFixed,
-        });
-        currentError = bestError;
-        changed = true;
-      } else {
-        Object.assign(entry.socket, originalSocket);
-      }
+      distributions = next;
     }
-    if (!changed) {
-      break;
+    let best = null;
+    for (const distribution of distributions.values()) {
+      if (!best || compareObjectives(getResistanceBalance(distribution.counts), getResistanceBalance(best.counts)) > 0) best = distribution;
     }
+    const flexibleChoices = [];
+    while (best.parent) {
+      flexibleChoices.push(best.optionIndex);
+      best = best.parent;
+    }
+    flexibleChoices.reverse();
+    let nextFlexible = 0;
+    selected = entries.map((entry) => entry.options.length === 1 ? 0 : flexibleChoices[nextFlexible++]);
+    balanceCache.set(cacheKey, selected);
   }
-}
-
-function improveResistancePairs(assignments, config) {
-  const resistanceEntries = assignments.flatMap((assignment) =>
-    assignment.sockets
-      .filter((socket) => config.activeResistanceSet.has(socket.statName))
-      .map((socket) => ({ assignment, socket })),
-  );
-  if (resistanceEntries.length < 2) {
-    return;
-  }
-
-  let currentObjective = getCombatObjective(assignments, config);
-  for (let pass = 0; pass < 6; pass += 1) {
-    let bestMove = null;
-    let bestObjective = currentObjective;
-
-    for (let firstIndex = 0; firstIndex < resistanceEntries.length; firstIndex += 1) {
-      const firstEntry = resistanceEntries[firstIndex];
-      const firstOriginal = { ...firstEntry.socket };
-      const firstColors = firstEntry.socket.isFixed
-        ? [firstEntry.socket.colorId]
-        : COLOR_IDS;
-      const firstChoices = firstColors
-        .flatMap((colorId) =>
-          getChoicesForColor(colorId, firstEntry.assignment.slotName),
-        )
-        .filter((choice) => config.activeResistanceSet.has(choice.statName));
-
-      for (
-        let secondIndex = firstIndex + 1;
-        secondIndex < resistanceEntries.length;
-        secondIndex += 1
-      ) {
-        const secondEntry = resistanceEntries[secondIndex];
-        const secondOriginal = { ...secondEntry.socket };
-        const secondColors = secondEntry.socket.isFixed
-          ? [secondEntry.socket.colorId]
-          : COLOR_IDS;
-        const secondChoices = secondColors
-          .flatMap((colorId) =>
-            getChoicesForColor(colorId, secondEntry.assignment.slotName),
-          )
-          .filter((choice) =>
-            config.activeResistanceSet.has(choice.statName),
-          );
-
-        for (const firstChoice of firstChoices) {
-          Object.assign(firstEntry.socket, firstChoice, {
-            socketIndex: firstOriginal.socketIndex,
-            isFixed: firstOriginal.isFixed,
-          });
-          for (const secondChoice of secondChoices) {
-            Object.assign(secondEntry.socket, secondChoice, {
-              socketIndex: secondOriginal.socketIndex,
-              isFixed: secondOriginal.isFixed,
-            });
-            const candidateObjective = getCombatObjective(assignments, config);
-            if (
-              compareCombatObjectives(candidateObjective, bestObjective) > 0
-            ) {
-              bestMove = {
-                firstEntry,
-                firstOriginal,
-                firstChoice,
-                secondEntry,
-                secondOriginal,
-                secondChoice,
-              };
-              bestObjective = candidateObjective;
-            }
-            Object.assign(secondEntry.socket, secondOriginal);
-          }
-          Object.assign(firstEntry.socket, firstOriginal);
-        }
-      }
-    }
-
-    if (!bestMove) {
-      break;
-    }
-
-    Object.assign(bestMove.firstEntry.socket, bestMove.firstChoice, {
-      socketIndex: bestMove.firstOriginal.socketIndex,
-      isFixed: bestMove.firstOriginal.isFixed,
-    });
-    Object.assign(bestMove.secondEntry.socket, bestMove.secondChoice, {
-      socketIndex: bestMove.secondOriginal.socketIndex,
-      isFixed: bestMove.secondOriginal.isFixed,
-    });
-    currentObjective = bestObjective;
-  }
-}
-
-function optimizeCombatAssignments(assignments) {
-  const activeDomainStats = STAT_ORDER.filter(
-    (statName) => isDomainStat(statName) && (state.weights[statName] ?? 0) > 0,
-  );
-  const activeResistanceStats = STAT_ORDER.filter(
-    (statName) => isResistanceStat(statName) && (state.weights[statName] ?? 0) > 0,
-  );
-  const activeExtraStats = STAT_ORDER.filter(
-    (statName) => EXTRA_STATS.has(statName) && (state.weights[statName] ?? 0) > 0,
-  );
-  const statsByGroup = {
-    attack: activeDomainStats,
-    defense: activeResistanceStats,
-    extras: activeExtraStats,
-  };
-  const groupWeights = {};
-  const activeGroups = [];
-  for (const [group, stats] of Object.entries(statsByGroup)) {
-    if (stats.length === 0) {
-      continue;
-    }
-    activeGroups.push(group);
-    groupWeights[group] =
-      stats.reduce(
-        (total, statName) => total + (state.weights[statName] ?? 0),
-        0,
-      ) / stats.length;
-  }
-
-  if (activeGroups.length === 0) {
-    return;
-  }
-
-  const defensePriorityTotal = activeResistanceStats.reduce(
-    (total, statName) => total + (state.weights[statName] ?? 0),
-    0,
-  );
-  const config = {
-    activeGroups,
-    activeGroupSet: new Set(activeGroups),
-    groupWeights,
-    activeResistanceSet: new Set(activeResistanceStats),
-    activeResistanceStats,
-    resistanceTarget: Object.fromEntries(
-      activeResistanceStats.map((statName) => [
-        statName,
-        defensePriorityTotal > 0
-          ? (state.weights[statName] ?? 0) / defensePriorityTotal
-          : 0,
-      ]),
-    ),
-  };
-  const choiceSets = assignments.map((assignment) =>
-    assignment.sockets.map((socket) => {
-      const allowedColorIds = socket.isFixed ? [socket.colorId] : COLOR_IDS;
-      return getChoicesForAllowedColors(allowedColorIds, assignment.slotName);
-    }),
-  );
-  const snapshotAssignments = () =>
-    assignments.map((assignment) =>
-      assignment.sockets.map((socket) => ({ ...socket })),
-    );
-  const restoreAssignments = (snapshot) => {
-    assignments.forEach((assignment, assignmentIndex) => {
-      assignment.sockets.forEach((socket, socketIndex) => {
-        Object.assign(socket, snapshot[assignmentIndex][socketIndex]);
-      });
-    });
-  };
-  const baselineSnapshot = snapshotAssignments();
-  let randomSeed = 0x9e3779b9;
-  const nextRandom = () => {
-    randomSeed = (randomSeed * 1664525 + 1013904223) >>> 0;
-    return randomSeed / 4294967296;
-  };
-  const improveCurrentAssignments = () => {
-    let currentObjective = getCombatObjective(assignments, config);
-
-    for (let pass = 0; pass < 12; pass += 1) {
-      let changed = false;
-
-      assignments.forEach((assignment, assignmentIndex) => {
-        assignment.sockets.forEach((socket, socketIndex) => {
-          const originalSocket = { ...socket };
-          let bestChoice = null;
-          let bestObjective = currentObjective;
-
-          for (const choice of choiceSets[assignmentIndex][socketIndex]) {
-            Object.assign(socket, originalSocket);
-            Object.assign(socket, choice, {
-              socketIndex: originalSocket.socketIndex,
-              isFixed: originalSocket.isFixed,
-            });
-            const candidateObjective = getCombatObjective(assignments, config);
-            if (
-              compareCombatObjectives(candidateObjective, bestObjective) > 0
-            ) {
-              bestChoice = choice;
-              bestObjective = candidateObjective;
-            }
-          }
-
-          if (bestChoice) {
-            Object.assign(socket, bestChoice, {
-              socketIndex: originalSocket.socketIndex,
-              isFixed: originalSocket.isFixed,
-            });
-            currentObjective = bestObjective;
-            changed = true;
-          } else {
-            Object.assign(socket, originalSocket);
-          }
-        });
-      });
-
-      if (!changed) {
-        break;
-      }
-    }
-
-    return currentObjective;
-  };
-  let bestSnapshot = snapshotAssignments();
-  let bestOverallObjective = getCombatObjective(assignments, config);
-
-  for (let restart = 0; restart < OPTIMIZER_RESTARTS; restart += 1) {
-    restoreAssignments(baselineSnapshot);
-    if (restart > 0) {
-      assignments.forEach((assignment, assignmentIndex) => {
-        assignment.sockets.forEach((socket, socketIndex) => {
-          const choices = choiceSets[assignmentIndex][socketIndex];
-          const choice = choices[Math.floor(nextRandom() * choices.length)];
-          Object.assign(socket, choice, {
-            socketIndex,
-            isFixed: socket.isFixed,
-          });
-        });
-      });
-    }
-
-    const candidateObjective = improveCurrentAssignments();
-    if (compareCombatObjectives(candidateObjective, bestOverallObjective) > 0) {
-      bestOverallObjective = candidateObjective;
-      bestSnapshot = snapshotAssignments();
-    }
-  }
-
-  restoreAssignments(bestSnapshot);
+  entries.forEach(({ socket, options }, index) => Object.assign(socket, options[selected[index]]));
   assignments.forEach(recalculateAssignment);
+}
+
+function getBuildObjective(assignments) {
+  const local = assignments.reduce((total, assignment) => {
+    const score = getAssignmentObjective(assignment);
+    return total.map((value, index) => value + score[index]);
+  }, [0, 0, 0, 0, 0]);
+  return [local[0], local[1], ...getResistanceBalance(getResistanceCounts(assignments)), ...local.slice(2)];
+}
+
+// Reconsider automatic destinations using the balanced build, including empty
+// pieces. Explicit destinations and the order of the three colors stay fixed.
+function improveAutomaticPlacements(assignments, explicitTargets, balanceCache) {
+  let bestObjective = getBuildObjective(assignments);
+  const byId = new Map(state.combinations.map((combination) => [combination.id, combination]));
+  for (let pass = 0; pass < EQUIPMENT_SLOTS.length; pass += 1) {
+    let bestMove = null;
+    for (let first = 0; first < assignments.length; first += 1) {
+      if (explicitTargets.has(assignments[first].slotName)) continue;
+      for (let second = first + 1; second < assignments.length; second += 1) {
+        if (explicitTargets.has(assignments[second].slotName)) continue;
+        if (!assignments[first].combinationId && !assignments[second].combinationId) continue;
+        const candidate = assignments.map((assignment) => ({
+          ...assignment, sockets: assignment.sockets.map((socket) => ({ ...socket })),
+        }));
+        candidate[first] = createBestAssignment(assignments[first].slotName, byId.get(assignments[second].combinationId));
+        candidate[second] = createBestAssignment(assignments[second].slotName, byId.get(assignments[first].combinationId));
+        optimizeCombatAssignments(candidate, balanceCache);
+        const objective = getBuildObjective(candidate);
+        if (compareObjectives(objective, bestObjective) > 0) {
+          bestObjective = objective;
+          bestMove = candidate;
+        }
+      }
+    }
+    if (!bestMove) break;
+    assignments.splice(0, assignments.length, ...bestMove);
+  }
 }
 
 function getCombinationValidation(combination, explicitTargets) {
@@ -1643,6 +1219,7 @@ function getCombinationValidation(combination, explicitTargets) {
 
 function getEmptyOptimizationResult() {
   const assignments = EQUIPMENT_SLOTS.map((slotName) => createAssignment(slotName, null));
+  optimizeCombatAssignments(assignments);
   return {
     assignments,
     totalScore: assignments.reduce((total, assignment) => total + assignment.score, 0),
@@ -1686,7 +1263,7 @@ function calculateOptimization() {
   const initialScores = new Map(
     initialAssignments.map((assignment) => [
       assignment.slotName,
-      assignment.optimizationScore,
+      getAssignmentObjective(assignment),
     ]),
   );
   const usedSlots = new Set();
@@ -1710,7 +1287,7 @@ function calculateOptimization() {
       return memo.get(memoKey);
     }
     if (index >= automaticCandidates.length) {
-      const terminal = { delta: 0, placements: [], unplaced: [] };
+      const terminal = { delta: [0, 0, 0, 0, 0], placements: [], unplaced: [] };
       memo.set(memoKey, terminal);
       return terminal;
     }
@@ -1723,7 +1300,7 @@ function calculateOptimization() {
 
     if (availableSlots.length === 0) {
       const terminal = {
-        delta: 0,
+        delta: [0, 0, 0, 0, 0],
         placements: [],
         unplaced: automaticCandidates.slice(index),
       };
@@ -1738,17 +1315,15 @@ function calculateOptimization() {
       const assignment = createBestAssignment(slotName, combination);
       const next = solveAutomatic(index + 1, usedMask | (1 << slotIndex));
       const candidate = {
-        delta:
-          assignment.optimizationScore -
-          (initialScores.get(slotName) ?? 0) +
-          next.delta,
+        delta: getAssignmentObjective(assignment).map((value, component) =>
+          value - initialScores.get(slotName)[component] + next.delta[component]),
         placements: [{ slotName, combination, assignment }, ...next.placements],
         unplaced: next.unplaced,
       };
       if (
         !best ||
-        candidate.delta > best.delta ||
-        (candidate.delta === best.delta &&
+        compareObjectives(candidate.delta, best.delta) > 0 ||
+        (compareObjectives(candidate.delta, best.delta) === 0 &&
           candidate.placements.length > best.placements.length)
       ) {
         best = candidate;
@@ -1768,7 +1343,9 @@ function calculateOptimization() {
   }
 
   const resolvedAssignments = EQUIPMENT_SLOTS.map((slotName) => assignments.get(slotName));
-  optimizeCombatAssignments(resolvedAssignments);
+  const balanceCache = new Map();
+  optimizeCombatAssignments(resolvedAssignments, balanceCache);
+  improveAutomaticPlacements(resolvedAssignments, explicitTargets, balanceCache);
   const totalScore = resolvedAssignments.reduce(
     (total, assignment) => total + assignment.score,
     0,
@@ -1796,18 +1373,18 @@ function hideFeedback() {
 }
 
 function renderMetrics(result) {
-  const prioritizedStats = ALL_STATS.filter((statName) => (state.weights[statName] ?? 0) > 0);
+  const prioritizedStats = SELECTABLE_STATS.filter((statName) => (state.weights[statName] ?? 0) > 0);
   const totalSockets = result.assignments.length * SOCKETS_PER_SLOT;
   const activeSockets = result.assignments.flatMap((assignment) => assignment.sockets).length;
   elements.metricScore.textContent = `${formatNumber(result.totalScore)} pts`;
   elements.metricScoreCaption.textContent =
     prioritizedStats.length > 0
-      ? `${prioritizedStats.length} stats ponderadas`
-      : "Sin prioridades, se usa orden estable";
+      ? "Tras cubrir resistencias"
+      : "Resistencias automáticas";
   elements.metricDoubles.textContent = formatNumber(result.doubleCount);
   elements.metricPriorities.textContent = formatNumber(prioritizedStats.length);
   elements.metricPrioritiesCaption.textContent =
-    prioritizedStats.length > 0 ? "Influyen directamente en el score" : "Activa sliders para enfocar el calculo";
+    prioritizedStats.length > 0 ? "Resistencias siempre obligatorias" : "Activa sliders para enfocar el calculo";
   elements.metricSlots.textContent = `${activeSockets} / ${totalSockets}`;
   elements.scorePill.textContent = formatNumber(result.totalScore);
   elements.priorityCount.textContent = `${prioritizedStats.length} activas`;
@@ -1817,6 +1394,9 @@ function renderSlotGrid(result) {
   elements.slotGrid.innerHTML = result.assignments
     .map((assignment, index) => {
       const isFixed = Boolean(assignment.combinationId);
+      const resistanceSockets = assignment.sockets.filter((socket) => isResistanceStat(socket.statName));
+      const resistanceCount = resistanceSockets.length;
+      const allResistanceDoubled = resistanceSockets.every((socket) => socket.isDouble);
       const combination = state.combinations.find((item) => item.id === assignment.combinationId);
       const socketMarkup = assignment.sockets
         .map((socket) => {
@@ -1869,7 +1449,7 @@ function renderSlotGrid(result) {
               <span class="slot-number">${String(index + 1).padStart(2, "0")}</span>
               <h3>${escapeHtml(assignment.slotName)}</h3>
             </div>
-            <span class="slot-score">${formatNumber(assignment.score)} pts</span>
+            <span class="slot-score" title="${formatNumber(assignment.score)} puntos de dominios">${resistanceCount ? `${resistanceCount} resist.${allResistanceDoubled ? " ×2" : ""}` : `${formatNumber(assignment.score)} pts`}</span>
           </div>
           <div class="socket-list">${socketMarkup}</div>
           ${patternMarkup}
@@ -1936,21 +1516,10 @@ function renderStatCoverage(result) {
       summary.score += socket.score;
     });
 
-  const prioritizedStats = STAT_ORDER.filter(
-    (statName) => (state.weights[statName] ?? 0) > 0,
-  ).sort((first, second) => {
-    const groupDifference =
-      STAT_GROUP_ORDER[getStatGroup(first)] -
-      STAT_GROUP_ORDER[getStatGroup(second)];
-    if (groupDifference !== 0) {
-      return groupDifference;
-    }
-    return (state.weights[second] ?? 0) - (state.weights[first] ?? 0);
-  });
-  const statsToShow =
-    prioritizedStats.length > 0
-      ? prioritizedStats
-      : ALL_STATS.filter((statName) => statSummary[statName].effectiveCount > 0).slice(0, 5);
+  const statsToShow = [
+    ...RESISTANCE_STATS,
+    ...SELECTABLE_STATS.filter((name) => state.weights[name] > 0 || statSummary[name].count > 0),
+  ];
 
   if (statsToShow.length === 0) {
     elements.statCoverage.innerHTML =
@@ -2085,9 +1654,6 @@ function resetDemo() {
   state.weights = {
     ...DEFAULT_WEIGHTS,
     "Dominio Cuerpo a Cuerpo": 100,
-    "Puntos de Vida (PdV)": 65,
-    Esquiva: 35,
-    "Resistencia a Tierra": 25,
   };
   state.slotValues = { ...DEFAULT_SLOT_VALUES };
   state.combinations = [];
@@ -2101,6 +1667,31 @@ function resetDemo() {
   renderSublimationPatternFilters();
   renderSublimationCatalog();
   calculateAndRender();
+}
+
+function activateTab(tabId) {
+  document.querySelectorAll('[role="tab"]').forEach((tab) => {
+    const selected = tab.id === tabId;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    document.getElementById(tab.getAttribute("aria-controls")).hidden = !selected;
+  });
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function bindTabs() {
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => activateTab(tab.id));
+    tab.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 :
+        (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+      activateTab(tabs[next].id);
+      tabs[next].focus();
+    });
+  });
 }
 
 function bindEvents() {
@@ -2150,6 +1741,7 @@ function bindEvents() {
       activeTagName !== "SELECT"
     ) {
       event.preventDefault();
+      activateTab("planner-tab");
       elements.sublimationSearch.focus();
     }
   });
@@ -2169,6 +1761,7 @@ function bindEvents() {
 function init() {
   getElements();
   bindEvents();
+  bindTabs();
   renderEquipmentSlotOptions();
   renderStatsControls();
   renderCombinationList();
