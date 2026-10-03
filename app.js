@@ -499,6 +499,69 @@ function getEquipmentMatches() {
   });
 }
 
+let equipmentRecipes;
+
+function itemIcon(itemId) {
+  const graphic = EQUIPMENT_CATALOG.find(item => item.id === itemId)?.gfxId || window.WAKFU_ITEM_ICONS?.[itemId];
+  return graphic ? `<img class="equipment-icon" src="https://www.zenithwakfu.com/images/items/${Number(graphic)}.webp" alt="" loading="lazy" width="48" height="48">` : '';
+}
+
+function hideBrokenItemIcons(container) {
+  container.querySelectorAll('.equipment-icon').forEach(image => {
+    image.addEventListener('error', () => { image.hidden = true; }, { once: true });
+  });
+}
+
+function equipmentStat(effect, level = 0) {
+  let text = effect.text;
+  if ([1068, 1069].includes(effect.actionId)) {
+    const value = Number((effect.params[0] + (effect.params[1] || 0) * level).toFixed(2));
+    text = `${value} ${effect.actionId === 1068 ? 'Dominio' : 'Resistencia'} en ${effect.params[2]} elementos`;
+  }
+  // Uninterpreted triggered effects must not appear as fake numerical statistics.
+  if (/[{}]/.test(text) || text === 'Sin nombre' || [39, 40].includes(effect.actionId)) {
+    return `<li class="equipment-stat effect-unresolved"><span>Efecto especial · consultar obtención (ID ${effect.actionId})</span></li>`;
+  }
+  const match = text.match(/^(-?\d+(?:[.,]\d+)?%?)\s+(.+)$/);
+  const icon = window.WAKFU_STAT_ICONS?.[effect.actionId] || ([80, 90, 100, 1069].includes(effect.actionId) ? 'resistance.webp' : null);
+  return `<li class="equipment-stat${match?.[1].startsWith('-') ? ' is-negative' : ''}">
+    ${icon ? `<img src="assets/stats/${escapeHtml(icon)}" width="20" height="20" alt="">` : '<span class="stat-icon-fallback" aria-hidden="true">◇</span>'}
+    <span>${escapeHtml(match ? match[2] : text)}</span>${match ? `<strong>${escapeHtml(match[1])}</strong>` : ''}</li>`;
+}
+
+function ingredientList(ingredients) {
+  return `<ul class="recipe-ingredients">${ingredients.map(entry => `<li>${itemIcon(entry.itemId)}<span>${escapeHtml(entry.name)} <small>#${entry.itemId}</small></span><strong>×${entry.quantity}</strong></li>`).join('')}</ul>`;
+}
+
+function renderCraftingPath(container, chain) {
+  const { steps, totals } = equipmentRecipes.requirements(chain);
+  container.innerHTML = `<p class="crafting-sequence">${chain.map(step => `${escapeHtml(step.item.rarityLabel)} · ${escapeHtml(step.item.name)}`).join(' → ')}</p>
+    <ol class="crafting-steps">${steps.map(step => `<li class="crafting-step">
+      <h5>${itemIcon(step.item.id)}<span>${escapeHtml(step.item.name)} <small>${escapeHtml(step.item.rarityLabel)} · #${step.item.id} · ×${step.needed}</small></span></h5>
+      ${step.recipe ? `<p>Receta #${step.recipe.id} · Nv. ${step.recipe.level} · ${step.crafts} fabricación(es), ${step.recipe.quantity} unidad(es) por fabricación</p>${ingredientList(step.ingredients)}` : `<p>Sin receta registrada: obtener ×${step.needed} de esta pieza por otra vía. <a href="https://db.methodwakfu.com/items/${step.item.id}" target="_blank" rel="noreferrer">Consultar obtención</a></p>`}
+    </li>`).join('')}</ol>
+    <div class="crafting-totals"><h5>Total para obtener 1 ${escapeHtml(chain.at(-1).item.name)} (${escapeHtml(chain.at(-1).item.rarityLabel)})</h5>
+    <p>Componentes que debes reunir desde el primer paso. Las piezas intermedias fabricadas no se cuentan dos veces. No se desglosan las recetas de los demás materiales.</p>${ingredientList(totals)}</div>`;
+  hideBrokenItemIcons(container);
+}
+
+function toggleCrafting(event) {
+  const button = event.currentTarget;
+  const panel = document.getElementById(button.getAttribute('aria-controls'));
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  button.setAttribute('aria-expanded', String(!expanded));
+  button.textContent = expanded ? 'Ver fabricación y mejoras' : 'Ocultar fabricación';
+  panel.hidden = expanded;
+  if (expanded || panel.childElementCount) return;
+  equipmentRecipes ||= window.WAKFU_CATALOG.createCatalog(EQUIPMENT_CATALOG);
+  const chains = equipmentRecipes.chains(Number(button.dataset.craftItem));
+  if (!chains.length) { panel.textContent = 'No hay datos de fabricación disponibles.'; return; }
+  panel.innerHTML = `${chains.length > 1 ? `<label>Ruta de fabricación <select class="crafting-route">${chains.map((chain, index) => `<option value="${index}">${index + 1}. ${chain.map(step => `${escapeHtml(step.item.rarityLabel)} #${step.item.id}${step.recipe ? ` (receta ${step.recipe.id})` : ''}`).join(' → ')}</option>`).join('')}</select></label>` : ''}<div class="crafting-path"></div>`;
+  const content = panel.querySelector('.crafting-path');
+  renderCraftingPath(content, chains[0]);
+  panel.querySelector('select')?.addEventListener('change', event => renderCraftingPath(content, chains[Number(event.target.value)]));
+}
+
 function renderEquipmentCatalog() {
   if (!elements.equipmentResults) {
     return;
@@ -524,10 +587,7 @@ function renderEquipmentCatalog() {
           item.sockets.max > 0
             ? `${item.sockets.min}–${item.sockets.max} huecos`
             : "Sin huecos";
-        const effects = item.effects
-          .slice(0, 6)
-          .map((effect) => escapeHtml(effect.text))
-          .join(" · ");
+        const effects = item.effects.map(effect => equipmentStat(effect, item.level)).join('');
         const recipe = item.recipes[0];
         const acquisition = recipe
           ? `Fabricable · receta Nv. ${recipe.level} · ${recipe.ingredients.length} ingredientes`
@@ -543,6 +603,7 @@ function renderEquipmentCatalog() {
           <article class="sublimation-result equipment-result">
             <div class="sublimation-result-header">
               <div class="sublimation-result-title">
+                ${itemIcon(item.id)}
                 <h4>${escapeHtml(item.name)}</h4>
                 <span class="catalog-kind">${escapeHtml(item.rarityLabel)}</span>
               </div>
@@ -554,13 +615,15 @@ function renderEquipmentCatalog() {
               <span>· ID ${item.id}</span>
             </div>
             <div class="catalog-effect">
-              <strong>${escapeHtml(effects || "Sin efectos de equipo interpretables")}</strong>
+              <ul class="equipment-stats">${effects || '<li>Sin efectos de equipo interpretables</li>'}</ul>
               <p>${escapeHtml(item.description || "Sin descripción.")}<br><span class="acquisition-note">${escapeHtml(acquisition)}</span></p>
             </div>
             <div class="catalog-result-footer equipment-footer">
               <a class="catalog-link" href="https://db.methodwakfu.com/items/${item.id}" target="_blank" rel="noreferrer">Consultar obtención</a>
               <div class="equipment-actions">${equipButtons}</div>
             </div>
+            <button class="quick-button crafting-toggle" type="button" data-craft-item="${item.id}" aria-expanded="false" aria-controls="crafting-${item.id}">Ver fabricación y mejoras</button>
+            <section id="crafting-${item.id}" class="crafting-panel" aria-label="Fabricación de ${escapeHtml(item.name)}" hidden></section>
           </article>
         `;
       })
@@ -570,6 +633,8 @@ function renderEquipmentCatalog() {
   elements.equipmentResults.querySelectorAll("[data-equip-item]").forEach((button) => {
     button.addEventListener("click", equipCatalogItem);
   });
+  elements.equipmentResults.querySelectorAll('[data-craft-item]').forEach(button => button.addEventListener('click', toggleCrafting));
+  hideBrokenItemIcons(elements.equipmentResults);
 }
 
 function getEquippedItems() {
@@ -1741,7 +1806,7 @@ function bindEvents() {
       activeTagName !== "SELECT"
     ) {
       event.preventDefault();
-      activateTab("guide-tab");
+      activateTab("planner-tab");
       elements.sublimationSearch.focus();
     }
   });

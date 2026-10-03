@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test scripts/optimizer.test.mjs",
+    "test": "node --test scripts/*.test.mjs",
     "sync:data": "node scripts/sync-game-data.mjs",
     "check:data": "node scripts/check-game-data.mjs",
     "query:data": "node scripts/query-game-data.mjs"

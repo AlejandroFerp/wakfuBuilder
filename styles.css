@@ -2182,6 +2182,30 @@ a {
 .brand-logo { width: 44px; height: 44px; object-fit: contain; flex-shrink: 0; }
 .guide-catalogs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
 .catalog-panel { min-width: 0; padding: clamp(16px, 3vw, 30px); }
+.equipment-stats { list-style: none; padding: 0; margin: 12px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; }
+.equipment-stat { display: flex; align-items: center; gap: 7px; padding: 5px 7px; background: rgba(0,0,0,.2); font-size: 12px; min-width: 0; }
+.equipment-stat img { flex-shrink: 0; object-fit: contain; }
+.equipment-stat strong { margin-left: auto; color: #9ae66f; white-space: nowrap; }
+.equipment-stat.is-negative strong { color: #ff7777; }
+.effect-unresolved { grid-column: 1 / -1; color: var(--muted); }
+.equipment-icon { flex-shrink: 0; object-fit: contain; }
+.equipment-icon[hidden], .crafting-panel[hidden] { display: none; }
+.crafting-toggle { margin-top: 12px; width: 100%; }
+#equipment-results { max-height: none; overflow: visible; }
+.crafting-panel { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+.crafting-panel select { width: 100%; margin-top: 8px; }
+.crafting-panel h5 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.crafting-panel h5 small { display: block; color: var(--muted); font-weight: normal; margin-top: 4px; }
+.crafting-panel p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.crafting-sequence { padding: 10px; background: rgba(0,0,0,.2); }
+.crafting-steps { list-style: none; padding: 0; display: grid; gap: 12px; }
+.crafting-step, .crafting-totals { padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.recipe-ingredients { list-style: none; padding: 0; margin: 8px 0 0; }
+.recipe-ingredients li { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--line); }
+.recipe-ingredients li strong { margin-left: auto; white-space: nowrap; }
+.recipe-ingredients small { color: var(--muted); }
+.recipe-ingredients .equipment-icon { width: 28px; height: 28px; }
+@media (max-width: 520px) { .equipment-stats { grid-template-columns: 1fr; } }
 @media (max-width: 900px) {
   .guide-catalogs { grid-template-columns: 1fr; }
 }
