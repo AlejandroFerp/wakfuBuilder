@@ -536,12 +536,12 @@ function ingredientList(ingredients) {
 function renderCraftingPath(container, chain) {
   const { steps, totals } = equipmentRecipes.requirements(chain);
   container.innerHTML = `<p class="crafting-sequence">${chain.map(step => `${escapeHtml(step.item.rarityLabel)} · ${escapeHtml(step.item.name)}`).join(' → ')}</p>
+    <div class="crafting-totals"><h5>Total para obtener 1 ${escapeHtml(chain.at(-1).item.name)} (${escapeHtml(chain.at(-1).item.rarityLabel)})</h5>
+    <p>Componentes que debes reunir desde el primer paso. Las piezas intermedias fabricadas no se cuentan dos veces. No se desglosan las recetas de los demás materiales.</p>${ingredientList(totals)}</div>
     <ol class="crafting-steps">${steps.map(step => `<li class="crafting-step">
       <h5>${itemIcon(step.item.id)}<span>${escapeHtml(step.item.name)} <small>${escapeHtml(step.item.rarityLabel)} · #${step.item.id} · ×${step.needed}</small></span></h5>
       ${step.recipe ? `<p>Receta #${step.recipe.id} · Nv. ${step.recipe.level} · ${step.crafts} fabricación(es), ${step.recipe.quantity} unidad(es) por fabricación</p>${ingredientList(step.ingredients)}` : `<p>Sin receta registrada: obtener ×${step.needed} de esta pieza por otra vía. <a href="https://db.methodwakfu.com/items/${step.item.id}" target="_blank" rel="noreferrer">Consultar obtención</a></p>`}
-    </li>`).join('')}</ol>
-    <div class="crafting-totals"><h5>Total para obtener 1 ${escapeHtml(chain.at(-1).item.name)} (${escapeHtml(chain.at(-1).item.rarityLabel)})</h5>
-    <p>Componentes que debes reunir desde el primer paso. Las piezas intermedias fabricadas no se cuentan dos veces. No se desglosan las recetas de los demás materiales.</p>${ingredientList(totals)}</div>`;
+    </li>`).join('')}</ol>`;
   hideBrokenItemIcons(container);
 }
 
