@@ -1,6 +1,6 @@
 # Wakfu Builder
 
-Color Forge es un optimizador local de huecos de encantamiento y un catálogo de objetos de Wakfu. El catálogo se genera desde el CDN oficial de Ankama y conserva la versión del juego con la que se creó.
+Wakfu Builder es un optimizador local de huecos de encantamiento y un catálogo de objetos de Wakfu. El catálogo se genera desde el CDN oficial de Ankama y conserva la versión del juego con la que se creó.
 
 ## Uso
 

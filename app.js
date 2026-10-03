@@ -1741,7 +1741,7 @@ function bindEvents() {
       activeTagName !== "SELECT"
     ) {
       event.preventDefault();
-      activateTab("planner-tab");
+      activateTab("guide-tab");
       elements.sublimationSearch.focus();
     }
   });
