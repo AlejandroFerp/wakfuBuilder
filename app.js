@@ -192,8 +192,7 @@ const state = {
   sublimationPatternFilters: [{ id: 1, colors: ["", "", ""] }],
   nextPatternFilterId: 2,
   equipmentQuery: "",
-  equipmentSlot: "",
-  equipmentMinLevel: 0,
+  equipmentFilters: null,
   equippedItems: loadSavedBuild(),
   nextCombinationId: 1,
   result: null,
@@ -225,8 +224,11 @@ function getElements() {
   elements.sublimationCount = document.querySelector("#sublimation-count");
   elements.sublimationPatternFilters = document.querySelector("#sublimation-pattern-filters");
   elements.equipmentSearch = document.querySelector("#equipment-search");
-  elements.equipmentSlotFilter = document.querySelector("#equipment-slot-filter");
-  elements.equipmentMinLevel = document.querySelector("#equipment-min-level");
+  elements.equipmentFilters = document.querySelector("#equipment-filters");
+  elements.equipmentSort = document.querySelector("#equipment-sort");
+  elements.equipmentFilterSummary = document.querySelector("#equipment-filter-summary");
+  elements.equipmentFilterError = document.querySelector("#equipment-filter-error");
+  elements.equipmentPagination = document.querySelector("#equipment-pagination");
   elements.equipmentResults = document.querySelector("#equipment-results");
   elements.equipmentCount = document.querySelector("#equipment-count");
   elements.buildSummary = document.querySelector("#build-summary");
@@ -473,30 +475,70 @@ function getEquipmentSlotLabel(slotId) {
 }
 
 function renderEquipmentSlotOptions() {
-  if (!elements.equipmentSlotFilter) {
-    return;
-  }
-  const availableSlots = BUILD_SLOT_ORDER.filter((slotId) =>
-    EQUIPMENT_CATALOG.some((item) => item.positions.includes(slotId)),
-  );
-  elements.equipmentSlotFilter.innerHTML = [
-    '<option value="">Todos los slots</option>',
-    ...availableSlots.map(
-      (slotId) =>
-        `<option value="${slotId}">${escapeHtml(getEquipmentSlotLabel(slotId))}</option>`,
-    ),
-  ].join("");
+  if (!elements.equipmentFilters) return;
+  const openGroups = [...elements.equipmentFilters.querySelectorAll('details')].map(group => group.open);
+  const api = window.WAKFU_EQUIPMENT_FILTERS;
+  const filters = currentEquipmentFilters();
+  const choices = (category, options) => `<div class="filter-choice-grid">${options.map(([value, label, icon]) => `<label class="filter-choice"><input type="checkbox" data-category="${category}" value="${escapeHtml(value)}" ${filters[category].includes(value) ? 'checked' : ''}>${icon ? `<img src="https://www.zenithwakfu.com/images/type_items/${icon}.png" alt="" loading="lazy" width="24" height="24">` : ''}<span>${escapeHtml(label)}</span></label>`).join('')}</div>`;
+  const heading = (label, key) => `<summary>${label}<span data-filter-count="${key}" class="filter-count"></span></summary>`;
+  const typeIcon = name => ({ 'Casco': 'helmet', 'Amuleto': 'necklace', 'Anillo': 'ring', 'Coraza': 'breastplate', 'Botas': 'boots', 'Capa': 'cape', 'Hombreras': 'epaulettes', 'Cintur': 'belt', 'Montura': 'mount', 'Mascota': 'pet', 'Traje': 'costum', 'Emblema': 'emblem', 'Herramienta': 'tools' }[name] || (name.includes('Segunda') ? name.startsWith('Daga') ? 'dagger' : 'shield' : name.includes('Dos manos') ? 'two_handed_weapon' : name.includes('Una mano') ? 'one_handed_weapon' : null));
+  const types = [...new Set(EQUIPMENT_CATALOG.map(item => item.itemTypeName))].sort((a, b) => a.localeCompare(b, 'es'));
+  const rarity = ['Común', 'Raro', 'Mítico', 'Legendario', 'Recuerdo', 'Épico', 'Reliquia'];
+  const rangeRow = (key, label, actionId) => {
+    const icon = window.WAKFU_STAT_ICONS?.[actionId] || (actionId === 80 ? 'resistance.webp' : null);
+    return `<div class="filter-stat-row">${icon ? `<img src="assets/stats/${escapeHtml(icon)}" alt="" width="20" height="20">` : '<span></span>'}<span>${escapeHtml(label)}</span>
+      <input type="number" step="any" data-stat="${key}" data-bound="min" value="${filters.ranges[key]?.min ?? ''}" placeholder="Mín" aria-label="${escapeHtml(label)} mínimo">
+      <input type="number" step="any" data-stat="${key}" data-bound="max" value="${filters.ranges[key]?.max ?? ''}" placeholder="Máx" aria-label="${escapeHtml(label)} máximo"></div>`;
+  };
+  elements.equipmentFilters.innerHTML = `<div class="filter-toolbar"><strong>Filtros</strong><button type="button" class="quick-button" id="clear-equipment-filters">Limpiar todo</button></div>
+    <details class="item-filter-group" open>${heading('Nivel', 'level')}<div class="filter-level-range"><input type="number" id="equipment-min-level" min="0" max="245" value="${filters.minLevel ?? ''}" placeholder="Mín" aria-label="Nivel mínimo"><span>a</span><input type="number" id="equipment-max-level" min="0" max="245" value="${filters.maxLevel ?? ''}" placeholder="Máx" aria-label="Nivel máximo"></div></details>
+    <details class="item-filter-group" open>${heading('Rareza', 'rarities')}${choices('rarities', rarity.map(value => [value, value]))}</details>
+    <details class="item-filter-group">${heading('Obtención', 'acquisition')}${choices('acquisition', [['craft', 'Fabricación'], ['upgrade', 'Mejora'], ['external', 'Sin receta registrada']])}<p class="filter-help">Las vías de drop, cofres y croupiers se consultan en la ficha de obtención.</p></details>
+    <details class="item-filter-group">${heading('Tipo de equipo', 'types')}${choices('types', types.map(value => [value, value === 'Cintur' ? 'Cinturón' : value.replace(/^Bast /, 'Bastón '), typeIcon(value)]))}</details>
+    <details class="item-filter-group" open>${heading('Características', 'stats')}<p class="filter-help">Cumplir todas las características. Una stat ausente vale 0. Los valores incluyen los malus.</p>${api.groups.map((group, index) => `<details class="filter-stat-group" ${index === 0 ? 'open' : ''}><summary>${group.label}<span data-filter-count="group-${index}" class="filter-count"></span></summary>${group.stats.map(stat => rangeRow(...stat)).join('')}</details>`).join('')}<p class="filter-help">Cada elemento incluye el bonus elemental universal. Los bonus en elementos aleatorios se filtran por separado.</p></details>`;
+  elements.equipmentSort.innerHTML = [['level-desc', 'Nivel: mayor primero'], ['level-asc', 'Nivel: menor primero'], ['name', 'Nombre: A–Z'], ['rarity', 'Rareza: mayor primero'], ...api.definitions.map(stat => [`stat:${stat.key}`, `${stat.label}: mayor primero`])].map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('');
+  elements.equipmentSort.value = filters.sort;
+  elements.equipmentFilters.querySelectorAll('details').forEach((group, index) => {
+    if (index < openGroups.length) group.open = openGroups[index];
+  });
 }
 
+function currentEquipmentFilters() {
+  return state.equipmentFilters ||= window.WAKFU_EQUIPMENT_FILTERS.blank();
+}
+
+let equipmentSearchIndex;
 function getEquipmentMatches() {
-  const terms = normalizeSearchText(state.equipmentQuery)
-    .split(/\s+/)
-    .filter(Boolean);
-  return EQUIPMENT_CATALOG.filter((item) => {
-    const matchesTerms = terms.every((term) => item.searchText.includes(term));
-    const matchesSlot = !state.equipmentSlot || item.positions.includes(state.equipmentSlot);
-    return matchesTerms && matchesSlot && item.level >= state.equipmentMinLevel;
+  equipmentSearchIndex ||= window.WAKFU_EQUIPMENT_FILTERS.createIndex(EQUIPMENT_CATALOG);
+  const filters = currentEquipmentFilters();
+  filters.query = state.equipmentQuery;
+  return equipmentSearchIndex.search(filters);
+}
+
+function renderEquipmentFilterSummary(matches, pageCount) {
+  const filters = currentEquipmentFilters();
+  const api = window.WAKFU_EQUIPMENT_FILTERS;
+  const chips = [];
+  if (state.equipmentQuery) chips.push(`<button type="button" class="filter-chip" data-clear-filter="query">${escapeHtml(state.equipmentQuery)} ×</button>`);
+  if (filters.minLevel != null || filters.maxLevel != null) chips.push(`<button type="button" class="filter-chip" data-clear-filter="level">Nivel ${filters.minLevel ?? 0}–${filters.maxLevel ?? 245} ×</button>`);
+  const acquisitionLabels = { craft: 'Fabricación', upgrade: 'Mejora', external: 'Sin receta registrada' };
+  for (const category of ['rarities', 'types', 'acquisition']) {
+    for (const value of filters[category]) chips.push(`<button type="button" class="filter-chip" data-clear-filter="${category}" data-value="${escapeHtml(value)}">${escapeHtml(acquisitionLabels[value] || value)} ×</button>`);
+  }
+  for (const [key, range] of Object.entries(filters.ranges)) {
+    const label = api.definitions.find(stat => stat.key === key)?.label;
+    chips.push(`<button type="button" class="filter-chip" data-clear-filter="stat" data-value="${key}">${escapeHtml(label)} ${range.min ?? '…'}–${range.max ?? '…'} ×</button>`);
+  }
+  elements.equipmentFilterSummary.innerHTML = chips.join('') || '<span>Todos los objetos · selecciona filtros para afinar la búsqueda.</span>';
+  const error = api.invalid(filters);
+  elements.equipmentFilterError.hidden = !error;
+  elements.equipmentFilterError.textContent = error;
+  elements.equipmentFilters.querySelectorAll('[data-filter-count]').forEach(badge => {
+    const key = badge.dataset.filterCount;
+    const count = key === 'level' ? Number(filters.minLevel != null || filters.maxLevel != null) : key === 'stats' ? Object.keys(filters.ranges).length : key.startsWith('group-') ? api.groups[Number(key.slice(6))].stats.filter(([id]) => filters.ranges[id]).length : filters[key].length;
+    badge.textContent = count ? String(count) : '';
   });
+  elements.equipmentPagination.innerHTML = matches ? `<button class="quick-button" type="button" data-page="1" aria-label="Primera página" ${filters.page === 1 ? 'disabled' : ''}>«</button><button class="quick-button" type="button" data-page="${filters.page - 1}" aria-label="Página anterior" ${filters.page === 1 ? 'disabled' : ''}>‹</button><span>Página ${filters.page} de ${pageCount}</span><button class="quick-button" type="button" data-page="${filters.page + 1}" aria-label="Página siguiente" ${filters.page === pageCount ? 'disabled' : ''}>›</button><button class="quick-button" type="button" data-page="${pageCount}" aria-label="Última página" ${filters.page === pageCount ? 'disabled' : ''}>»</button>` : '';
 }
 
 let equipmentRecipes;
@@ -567,8 +609,13 @@ function renderEquipmentCatalog() {
     return;
   }
   const matches = getEquipmentMatches();
-  const visibleMatches = matches.slice(0, EQUIPMENT_RESULTS_LIMIT);
+  const filters = currentEquipmentFilters();
+  const pageCount = Math.max(1, Math.ceil(matches.length / EQUIPMENT_RESULTS_LIMIT));
+  filters.page = Math.max(1, Math.min(pageCount, filters.page));
+  const start = (filters.page - 1) * EQUIPMENT_RESULTS_LIMIT;
+  const visibleMatches = matches.slice(start, start + EQUIPMENT_RESULTS_LIMIT);
   elements.equipmentCount.textContent = `${matches.length} ${matches.length === 1 ? "resultado" : "resultados"}`;
+  renderEquipmentFilterSummary(matches.length, pageCount);
 
   if (matches.length === 0) {
     elements.equipmentResults.innerHTML =
@@ -578,7 +625,7 @@ function renderEquipmentCatalog() {
 
   const limitMessage =
     matches.length > EQUIPMENT_RESULTS_LIMIT
-      ? `<p class="catalog-limit">Mostrando ${EQUIPMENT_RESULTS_LIMIT} de ${matches.length}. Añade más términos o filtra por slot.</p>`
+      ? `<p class="catalog-limit">Mostrando ${start + 1}–${Math.min(start + EQUIPMENT_RESULTS_LIMIT, matches.length)} de ${matches.length}.</p>`
       : "";
   elements.equipmentResults.innerHTML = `
     ${visibleMatches
@@ -1780,16 +1827,68 @@ function bindEvents() {
   });
   elements.equipmentSearch.addEventListener("input", (event) => {
     state.equipmentQuery = event.currentTarget.value;
+    currentEquipmentFilters().page = 1;
     renderEquipmentCatalog();
   });
-  elements.equipmentSlotFilter.addEventListener("change", (event) => {
-    state.equipmentSlot = event.currentTarget.value;
+  elements.equipmentFilters.addEventListener('input', event => {
+    const input = event.target;
+    if (input.type !== 'number') return;
+    const filters = currentEquipmentFilters();
+    const value = input.value === '' || !Number.isFinite(Number(input.value)) ? null : Number(input.value);
+    if (input.dataset.stat) {
+      const range = filters.ranges[input.dataset.stat] ||= { min: null, max: null };
+      range[input.dataset.bound] = value;
+      if (range.min == null && range.max == null) delete filters.ranges[input.dataset.stat];
+    } else {
+      const bounded = value == null ? null : Math.max(0, Math.min(245, value));
+      filters[input.id === 'equipment-min-level' ? 'minLevel' : 'maxLevel'] = bounded;
+      if (bounded != null && bounded !== value) input.value = String(bounded);
+    }
+    filters.page = 1;
     renderEquipmentCatalog();
   });
-  elements.equipmentMinLevel.addEventListener("input", (event) => {
-    const value = Number(event.currentTarget.value);
-    state.equipmentMinLevel = Number.isFinite(value) ? Math.max(0, Math.min(245, value)) : 0;
+  elements.equipmentFilters.addEventListener('change', event => {
+    const input = event.target;
+    if (!input.dataset.category) return;
+    const filters = currentEquipmentFilters();
+    const category = input.dataset.category;
+    filters[category] = [...elements.equipmentFilters.querySelectorAll(`input[data-category="${category}"]:checked`)].map(input => input.value);
+    filters.page = 1;
     renderEquipmentCatalog();
+  });
+  elements.equipmentFilters.addEventListener('click', event => {
+    if (!event.target.closest('#clear-equipment-filters')) return;
+    state.equipmentFilters = window.WAKFU_EQUIPMENT_FILTERS.blank();
+    state.equipmentQuery = '';
+    elements.equipmentSearch.value = '';
+    renderEquipmentSlotOptions();
+    renderEquipmentCatalog();
+  });
+  elements.equipmentSort.addEventListener('change', event => {
+    const filters = currentEquipmentFilters();
+    filters.sort = event.target.value;
+    filters.page = 1;
+    renderEquipmentCatalog();
+  });
+  elements.equipmentFilterSummary.addEventListener('click', event => {
+    const button = event.target.closest('[data-clear-filter]');
+    if (!button) return;
+    const filters = currentEquipmentFilters();
+    const category = button.dataset.clearFilter;
+    if (category === 'query') { state.equipmentQuery = ''; elements.equipmentSearch.value = ''; }
+    else if (category === 'level') { filters.minLevel = null; filters.maxLevel = null; }
+    else if (category === 'stat') delete filters.ranges[button.dataset.value];
+    else filters[category] = filters[category].filter(value => value !== button.dataset.value);
+    filters.page = 1;
+    renderEquipmentSlotOptions();
+    renderEquipmentCatalog();
+  });
+  elements.equipmentPagination.addEventListener('click', event => {
+    const button = event.target.closest('[data-page]');
+    if (!button || button.disabled) return;
+    currentEquipmentFilters().page = Number(button.dataset.page);
+    renderEquipmentCatalog();
+    elements.equipmentCount.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
   document.querySelector("#clear-build").addEventListener("click", () => {
     state.equippedItems = {};

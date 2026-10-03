@@ -11,12 +11,13 @@
     <link rel="icon" type="image/png" href="assets/wakfu-builder-w.png" />
     <link rel="apple-touch-icon" href="assets/wakfu-builder-w.png" />
     <meta name="theme-color" content="#079fe5" />
-    <link rel="stylesheet" href="styles.css?v=20261003-2" />
+    <link rel="stylesheet" href="styles.css?v=20261003-3" />
     <script defer src="data/game-data.js?v=20260919-1"></script>
     <script defer src="sublimations-data.js?v=20261002-3"></script>
     <script defer src="data/item-icons.js?v=20261003-2"></script>
     <script defer src="catalog.js?v=20261003-2"></script>
-    <script defer src="app.js?v=20261003-2"></script>
+    <script defer src="equipment-filters.js?v=20261003-3"></script>
+    <script defer src="app.js?v=20261003-3"></script>
   </head>
   <body>
     <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -280,13 +281,19 @@
                 autocomplete="off"
               />
             </label>
-            <div class="catalog-filters">
-              <select id="equipment-slot-filter" aria-label="Filtrar por slot">
-                <option value="">Todos los slots</option>
-              </select>
-              <input id="equipment-min-level" type="number" min="0" max="245" placeholder="Nivel mínimo" aria-label="Nivel mínimo" />
+            <div class="equipment-browser">
+              <aside id="equipment-filters" class="equipment-filters" aria-label="Filtros de objetos"></aside>
+              <div class="equipment-browser-results">
+                <div class="equipment-sort-row">
+                  <label for="equipment-sort">Ordenar por</label>
+                  <select id="equipment-sort"></select>
+                </div>
+                <div id="equipment-filter-summary" class="equipment-filter-summary" aria-live="polite"></div>
+                <p id="equipment-filter-error" class="equipment-filter-error" role="status" hidden></p>
+                <div id="equipment-results" class="sublimation-results"></div>
+                <nav id="equipment-pagination" class="equipment-pagination" aria-label="Páginas de objetos"></nav>
+              </div>
             </div>
-            <div id="equipment-results" class="sublimation-results"></div>
           </section>
 
       </div>
