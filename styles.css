@@ -2242,6 +2242,27 @@ a {
 .equipment-filter-error { color: #ff9999; font-size: 12px; }
 .equipment-pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; font-size: 12px; flex-wrap: wrap; }
 .equipment-pagination button:disabled { opacity: .35; cursor: default; }
+.profile-filter-label { display: grid; gap: 6px; margin: 10px; font-size: 12px; }
+.profile-filter-label select { width: 100%; min-width: 0; padding: 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+.score-formula { margin: 10px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.score-formula summary { cursor: pointer; color: var(--text); }
+.item-profile-scores { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 12px 0 6px; }
+.item-profile-score { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.item-profile-score > span { font-size: 12px; color: var(--muted); }
+.item-profile-score > strong { font-size: 16px; }
+.item-profile-score > small, .item-profile-reference { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.item-profile-score.above-median { border-color: rgba(164,227,109,.45); }
+.item-profile-score.above-median > strong { color: var(--accent-strong); }
+.item-equipment-conditions { margin: 10px 0; padding: 10px; border: 1px solid rgba(238,182,86,.4); border-radius: 8px; font-size: 12px; }
+.item-equipment-conditions ul { margin: 6px 0; padding-left: 18px; }
+.item-equipment-conditions small { color: var(--muted); }
+.condition-multiselect { margin: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.condition-multiselect > summary { display: flex; justify-content: space-between; gap: 8px; padding: 9px; font-size: 12px; cursor: pointer; }
+.condition-multiselect > summary::after { content: '⌄'; }
+.condition-multiselect[open] > summary::after { content: '⌃'; }
+.condition-multiselect > .filter-choice-grid { grid-template-columns: 1fr; max-height: 300px; overflow-y: auto; padding: 6px; border-top: 1px solid var(--line); }
+.condition-multiselect .filter-choice { font-size: 12px; padding: 8px 5px; }
+.condition-multiselect > summary:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 .equipment-filters :focus-visible, .filter-chip:focus-visible, .equipment-pagination button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 @media (max-width: 1500px) {
   .guide-catalogs { grid-template-columns: 1fr; }

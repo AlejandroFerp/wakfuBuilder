@@ -25,3 +25,14 @@ Iconos de estadísticas guardados localmente (34). Las imágenes de objetos se s
 - [x] 18 pruebas correctas. Verificación en navegador de rangos combinados, rareza, tipo, aviso por rango invertido, limpieza y cambio de página.
 
 Ejemplo verificado: niveles 51–80, PA ≥1, dominio distancia ≥20 → 13 resultados; añadir Mítico y Hacha (Dos manos) → Trirreme. Sin filtros: 7.819 objetos, 435 páginas de 18.
+
+## Perfiles y requisitos de equipamiento (13 de octubre)
+
+- [x] Registro comunitario de 59 objetos con requisitos, con fuente y límite de cobertura visibles.
+- [x] Selección de condiciones concretas, por ejemplo PA ≤11 o placaje ≥500.
+- [x] Filtros con/sin estadísticas negativas y por malus concreto, sin confundirlos con los requisitos del personaje.
+- [x] Mono, bi, tri y todos los elementos según bonus positivos.
+- [x] Índices ofensivo/defensivo con PA ×100, PM ×75, crítico/anticipación ×50; esquiva ×0,25 en ambos perfiles; sin PdV ni cura ni penalizaciones por malus.
+- [x] Medianas y percentiles por tipo y franjas reales del juego; filtros sobre mediana y ordenaciones relativa/absoluta.
+- [x] 24 pruebas correctas, incluida cobertura del catálogo completo.
+- [ ] Revisión visual de los nuevos controles: el navegador integrado no está disponible en esta sesión.

@@ -481,6 +481,8 @@ function renderEquipmentSlotOptions() {
   const filters = currentEquipmentFilters();
   const choices = (category, options) => `<div class="filter-choice-grid">${options.map(([value, label, icon]) => `<label class="filter-choice"><input type="checkbox" data-category="${category}" value="${escapeHtml(value)}" ${filters[category].includes(value) ? 'checked' : ''}>${icon ? `<img src="https://www.zenithwakfu.com/images/type_items/${icon}.png" alt="" loading="lazy" width="24" height="24">` : ''}<span>${escapeHtml(label)}</span></label>`).join('')}</div>`;
   const heading = (label, key) => `<summary>${label}<span data-filter-count="${key}" class="filter-count"></span></summary>`;
+  const selectFilter = (key, label, options) => `<label class="profile-filter-label">${label}<select data-filter-select="${key}" aria-label="${label}">${options.map(([value, text]) => `<option value="${escapeHtml(value)}" ${filters[key] === value ? 'selected' : ''}>${escapeHtml(text)}</option>`).join('')}</select></label>`;
+  const conditionOptions = api.conditionOptions.map(option => [option.key, option.label]);
   const typeIcon = name => ({ 'Casco': 'helmet', 'Amuleto': 'necklace', 'Anillo': 'ring', 'Coraza': 'breastplate', 'Botas': 'boots', 'Capa': 'cape', 'Hombreras': 'epaulettes', 'Cintur': 'belt', 'Montura': 'mount', 'Mascota': 'pet', 'Traje': 'costum', 'Emblema': 'emblem', 'Herramienta': 'tools' }[name] || (name.includes('Segunda') ? name.startsWith('Daga') ? 'dagger' : 'shield' : name.includes('Dos manos') ? 'two_handed_weapon' : name.includes('Una mano') ? 'one_handed_weapon' : null));
   const types = [...new Set(EQUIPMENT_CATALOG.map(item => item.itemTypeName))].sort((a, b) => a.localeCompare(b, 'es'));
   const rarity = ['Común', 'Raro', 'Mítico', 'Legendario', 'Recuerdo', 'Épico', 'Reliquia'];
@@ -495,8 +497,17 @@ function renderEquipmentSlotOptions() {
     <details class="item-filter-group" open>${heading('Rareza', 'rarities')}${choices('rarities', rarity.map(value => [value, value]))}</details>
     <details class="item-filter-group">${heading('Obtención', 'acquisition')}${choices('acquisition', [['craft', 'Fabricación'], ['upgrade', 'Mejora'], ['external', 'Sin receta registrada']])}<p class="filter-help">Las vías de drop, cofres y croupiers se consultan en la ficha de obtención.</p></details>
     <details class="item-filter-group">${heading('Tipo de equipo', 'types')}${choices('types', types.map(value => [value, value === 'Cintur' ? 'Cinturón' : value.replace(/^Bast /, 'Bastón '), typeIcon(value)]))}</details>
+    <details class="item-filter-group" open>${heading('Perfil y puntuación', 'profile')}
+      ${selectFilter('bracket', 'Franja de nivel', [['', 'Todas las franjas'], ['0', 'Nivel 0'], ...api.bracketEnds.map(end => [String(end), api.bracketFor(end).label])])}
+      ${selectFilter('scoreMode', 'Perfil del objeto', [['any', 'Todos los perfiles'], ['offensive', 'Ofensivo: sobre la mediana'], ['defensive', 'Defensivo: sobre la mediana'], ['both', 'Sobre ambas medianas']])}
+      <p class="filter-help">Comparación por tipo de equipo dentro de cada franja del juego. La mediana se calcula sobre el catálogo completo y no cambia al filtrar.</p>
+      <details class="score-formula"><summary>Cómo se calcula</summary><p>PA ×100, PM ×75 y esquiva ×0,25 suman a ambos perfiles. Ofensivo: crítico ×50 + dominios positivos (excepto cura). El dominio elemental cuenta una vez, sin multiplicar por elementos. Defensivo: anticipación ×50 + placaje + resistencias por elemento, crítica y espalda. PdV y los malus no puntúan.</p></details>
+    </details>
+    <details class="item-filter-group">${heading('Elementos de dominio', 'elements')}${choices('elements', [['1', 'Monoelemental'], ['2', 'Bielemental'], ['3', 'Trielemental'], ['4', 'Todos los elementos']])}<p class="filter-help">Según los bonus elementales positivos del objeto; un objeto con varios bonus puede encajar en más de una opción.</p></details>
+    <details class="item-filter-group">${heading('Estadísticas negativas', 'negatives')}${selectFilter('negatives', 'Malus del objeto', [['any', 'Con y sin malus'], ['none', 'Sin estadísticas negativas'], ['with', 'Con estadísticas negativas']])}<details class="filter-stat-group"><summary>Elegir malus concreto</summary>${choices('negativeStats', api.definitions.map(stat => [stat.key, stat.label]))}</details><p class="filter-help">Elegir varios malus incluye los objetos con al menos uno de ellos. Son efectos negativos del objeto, no requisitos para equiparlo.</p></details>
+    <details class="item-filter-group">${heading('Condiciones de equipamiento', 'conditions')}<details class="condition-multiselect"><summary><span id="condition-selection-label">Elegir condiciones</span></summary>${choices('conditionSelection', conditionOptions)}</details><p class="filter-help">Marca una o varias condiciones. Basta que el objeto tenga una de ellas y cumpla los demás filtros. Sin selección se muestran todos los objetos. Registro comunitario parcial. <a href="https://github.com/mikeshardmind/wakfu-utils/blob/main/wakautosolver/item_conditions.py" target="_blank" rel="noreferrer">Fuente</a>.</p></details>
     <details class="item-filter-group" open>${heading('Características', 'stats')}<p class="filter-help">Cumplir todas las características. Una stat ausente vale 0. Los valores incluyen los malus.</p>${api.groups.map((group, index) => `<details class="filter-stat-group" ${index === 0 ? 'open' : ''}><summary>${group.label}<span data-filter-count="group-${index}" class="filter-count"></span></summary>${group.stats.map(stat => rangeRow(...stat)).join('')}</details>`).join('')}<p class="filter-help">Cada elemento incluye el bonus elemental universal. Los bonus en elementos aleatorios se filtran por separado.</p></details>`;
-  elements.equipmentSort.innerHTML = [['level-desc', 'Nivel: mayor primero'], ['level-asc', 'Nivel: menor primero'], ['name', 'Nombre: A–Z'], ['rarity', 'Rareza: mayor primero'], ...api.definitions.map(stat => [`stat:${stat.key}`, `${stat.label}: mayor primero`])].map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('');
+  elements.equipmentSort.innerHTML = [['level-desc', 'Nivel: mayor primero'], ['level-asc', 'Nivel: menor primero'], ['name', 'Nombre: A–Z'], ['rarity', 'Rareza: mayor primero'], ['score:offensive-relative', 'Mejores ofensivos en su franja'], ['score:defensive-relative', 'Mejores defensivos en su franja'], ['score:offensive', 'Puntos ofensivos: mayor primero'], ['score:defensive', 'Puntos defensivos: mayor primero'], ...api.definitions.map(stat => [`stat:${stat.key}`, `${stat.label}: mayor primero`])].map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('');
   elements.equipmentSort.value = filters.sort;
   elements.equipmentFilters.querySelectorAll('details').forEach((group, index) => {
     if (index < openGroups.length) group.open = openGroups[index];
@@ -522,20 +533,29 @@ function renderEquipmentFilterSummary(matches, pageCount) {
   if (state.equipmentQuery) chips.push(`<button type="button" class="filter-chip" data-clear-filter="query">${escapeHtml(state.equipmentQuery)} ×</button>`);
   if (filters.minLevel != null || filters.maxLevel != null) chips.push(`<button type="button" class="filter-chip" data-clear-filter="level">Nivel ${filters.minLevel ?? 0}–${filters.maxLevel ?? 245} ×</button>`);
   const acquisitionLabels = { craft: 'Fabricación', upgrade: 'Mejora', external: 'Sin receta registrada' };
-  for (const category of ['rarities', 'types', 'acquisition']) {
-    for (const value of filters[category]) chips.push(`<button type="button" class="filter-chip" data-clear-filter="${category}" data-value="${escapeHtml(value)}">${escapeHtml(acquisitionLabels[value] || value)} ×</button>`);
+  const labels = { other: 'Otro efecto negativo', ...Object.fromEntries(api.definitions.map(stat => [stat.key, stat.label])) };
+  for (const category of ['rarities', 'types', 'acquisition', 'elements', 'negativeStats', 'conditionSelection']) {
+    for (const value of filters[category]) {
+      const label = category === 'elements' ? `${value} elemento(s)` : category === 'negativeStats' ? `Malus: ${labels[value]}` : category === 'conditionSelection' ? api.conditionOptions.find(option => option.key === value)?.label || value : acquisitionLabels[value] || value;
+      chips.push(`<button type="button" class="filter-chip" data-clear-filter="${category}" data-value="${escapeHtml(value)}">${escapeHtml(label)} ×</button>`);
+    }
   }
+  const extraLabels = { negatives: { none: 'Sin malus', with: 'Con malus' }, conditionMode: { with: 'Con condiciones registradas', unrecorded: 'Sin condición registrada' }, scoreMode: { offensive: 'Ofensivo sobre mediana', defensive: 'Defensivo sobre mediana', both: 'Sobre ambas medianas' } };
+  for (const [key, values] of Object.entries(extraLabels)) if (values[filters[key]]) chips.push(`<button type="button" class="filter-chip" data-clear-filter="select" data-value="${key}">${values[filters[key]]} ×</button>`);
+  if (filters.bracket) chips.push(`<button type="button" class="filter-chip" data-clear-filter="select" data-value="bracket">Franja ${api.bracketFor(Number(filters.bracket)).label} ×</button>`);
   for (const [key, range] of Object.entries(filters.ranges)) {
     const label = api.definitions.find(stat => stat.key === key)?.label;
     chips.push(`<button type="button" class="filter-chip" data-clear-filter="stat" data-value="${key}">${escapeHtml(label)} ${range.min ?? '…'}–${range.max ?? '…'} ×</button>`);
   }
   elements.equipmentFilterSummary.innerHTML = chips.join('') || '<span>Todos los objetos · selecciona filtros para afinar la búsqueda.</span>';
+  const conditionLabel = elements.equipmentFilters.querySelector('#condition-selection-label');
+  if (conditionLabel) conditionLabel.textContent = filters.conditionSelection.length ? `${filters.conditionSelection.length} condición(es) seleccionada(s)` : 'Elegir condiciones';
   const error = api.invalid(filters);
   elements.equipmentFilterError.hidden = !error;
   elements.equipmentFilterError.textContent = error;
   elements.equipmentFilters.querySelectorAll('[data-filter-count]').forEach(badge => {
     const key = badge.dataset.filterCount;
-    const count = key === 'level' ? Number(filters.minLevel != null || filters.maxLevel != null) : key === 'stats' ? Object.keys(filters.ranges).length : key.startsWith('group-') ? api.groups[Number(key.slice(6))].stats.filter(([id]) => filters.ranges[id]).length : filters[key].length;
+    const count = key === 'profile' ? Number(filters.scoreMode !== 'any') + Number(Boolean(filters.bracket)) : key === 'negatives' ? Number(filters.negatives !== 'any') + filters.negativeStats.length : key === 'conditions' ? Number(filters.conditionMode !== 'any') + filters.conditionSelection.length : key === 'level' ? Number(filters.minLevel != null || filters.maxLevel != null) : key === 'stats' ? Object.keys(filters.ranges).length : key.startsWith('group-') ? api.groups[Number(key.slice(6))].stats.filter(([id]) => filters.ranges[id]).length : filters[key].length;
     badge.textContent = count ? String(count) : '';
   });
   elements.equipmentPagination.innerHTML = matches ? `<button class="quick-button" type="button" data-page="1" aria-label="Primera página" ${filters.page === 1 ? 'disabled' : ''}>«</button><button class="quick-button" type="button" data-page="${filters.page - 1}" aria-label="Página anterior" ${filters.page === 1 ? 'disabled' : ''}>‹</button><span>Página ${filters.page} de ${pageCount}</span><button class="quick-button" type="button" data-page="${filters.page + 1}" aria-label="Página siguiente" ${filters.page === pageCount ? 'disabled' : ''}>›</button><button class="quick-button" type="button" data-page="${pageCount}" aria-label="Última página" ${filters.page === pageCount ? 'disabled' : ''}>»</button>` : '';
@@ -604,6 +624,16 @@ function toggleCrafting(event) {
   panel.querySelector('select')?.addEventListener('change', event => renderCraftingPath(content, chains[Number(event.target.value)]));
 }
 
+function renderEquipmentProfile(item) {
+  const profile = equipmentSearchIndex.profiles.get(item.id);
+  const rules = equipmentSearchIndex.conditions.get(item.id);
+  const label = key => window.WAKFU_EQUIPMENT_FILTERS.definitions.find(stat => stat.key === key)?.label || key;
+  const number = value => value.toLocaleString('es', { maximumFractionDigits: 2 });
+  return `<div class="item-profile-scores">${[['offensive', 'Ofensivo'], ['defensive', 'Defensivo']].map(([axis, title]) => `<div class="item-profile-score ${profile[axis] > profile[`${axis}Median`] ? 'above-median' : ''}"><span>${title}</span><strong>${number(profile[axis])} pts</strong><small>Mediana ${number(profile[`${axis}Median`])} · percentil ${number(profile[`${axis}Percentile`])}</small></div>`).join('')}</div>
+    <p class="item-profile-reference">${escapeHtml(item.itemTypeName)} · franja ${profile.bracket.label} · ${profile.sampleSize} objetos de referencia${profile.elements.length ? ` · ${profile.elements.join('/')} elemento(s)` : ''}</p>
+    ${rules.length ? `<div class="item-equipment-conditions"><strong>Condiciones para equipar</strong><ul>${rules.map(rule => `<li>${escapeHtml(label(rule.stat))} ${rule.operator === '>=' ? '≥' : '≤'} ${rule.value}</li>`).join('')}</ul><small>Registro comunitario · requisitos del personaje</small></div>` : '<p class="item-profile-reference">Sin condición de equipamiento registrada.</p>'}`;
+}
+
 function renderEquipmentCatalog() {
   if (!elements.equipmentResults) {
     return;
@@ -665,6 +695,7 @@ function renderEquipmentCatalog() {
               <ul class="equipment-stats">${effects || '<li>Sin efectos de equipo interpretables</li>'}</ul>
               <p>${escapeHtml(item.description || "Sin descripción.")}<br><span class="acquisition-note">${escapeHtml(acquisition)}</span></p>
             </div>
+            ${renderEquipmentProfile(item)}
             <div class="catalog-result-footer equipment-footer">
               <a class="catalog-link" href="https://db.methodwakfu.com/items/${item.id}" target="_blank" rel="noreferrer">Consultar obtención</a>
               <div class="equipment-actions">${equipButtons}</div>
@@ -1849,10 +1880,30 @@ function bindEvents() {
   });
   elements.equipmentFilters.addEventListener('change', event => {
     const input = event.target;
+    if (input.dataset.filterSelect) {
+      const filters = currentEquipmentFilters();
+      filters[input.dataset.filterSelect] = input.value;
+      if (input.dataset.filterSelect === 'negatives' && input.value === 'none') {
+        filters.negativeStats = [];
+        elements.equipmentFilters.querySelectorAll('[data-category="negativeStats"]').forEach(box => { box.checked = false; });
+      }
+      if (input.dataset.filterSelect === 'conditionMode' && input.value === 'unrecorded') {
+        filters.conditionSelection = [];
+        elements.equipmentFilters.querySelectorAll('[data-category="conditionSelection"]').forEach(box => { box.checked = false; });
+      }
+      filters.page = 1;
+      renderEquipmentCatalog();
+      return;
+    }
     if (!input.dataset.category) return;
     const filters = currentEquipmentFilters();
     const category = input.dataset.category;
     filters[category] = [...elements.equipmentFilters.querySelectorAll(`input[data-category="${category}"]:checked`)].map(input => input.value);
+    if (category === 'negativeStats' && filters[category].length) {
+      filters.negatives = 'with';
+      elements.equipmentFilters.querySelector('[data-filter-select="negatives"]').value = 'with';
+    }
+    if (category === 'conditionSelection') filters.conditionMode = 'any';
     filters.page = 1;
     renderEquipmentCatalog();
   });
@@ -1863,6 +1914,13 @@ function bindEvents() {
     elements.equipmentSearch.value = '';
     renderEquipmentSlotOptions();
     renderEquipmentCatalog();
+  });
+  elements.equipmentFilters.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const dropdown = event.target.closest('.condition-multiselect');
+    if (!dropdown?.open) return;
+    dropdown.open = false;
+    dropdown.querySelector('summary').focus();
   });
   elements.equipmentSort.addEventListener('change', event => {
     const filters = currentEquipmentFilters();
@@ -1878,6 +1936,7 @@ function bindEvents() {
     if (category === 'query') { state.equipmentQuery = ''; elements.equipmentSearch.value = ''; }
     else if (category === 'level') { filters.minLevel = null; filters.maxLevel = null; }
     else if (category === 'stat') delete filters.ranges[button.dataset.value];
+    else if (category === 'select') filters[button.dataset.value] = button.dataset.value === 'bracket' ? '' : 'any';
     else filters[category] = filters[category].filter(value => value !== button.dataset.value);
     filters.page = 1;
     renderEquipmentSlotOptions();
