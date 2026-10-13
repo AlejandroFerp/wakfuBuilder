@@ -499,7 +499,7 @@ function renderEquipmentSlotOptions() {
     <details class="item-filter-group">${heading('Tipo de equipo', 'types')}${choices('types', types.map(value => [value, value === 'Cintur' ? 'Cinturón' : value.replace(/^Bast /, 'Bastón '), typeIcon(value)]))}</details>
     <details class="item-filter-group" open>${heading('Perfil y puntuación', 'profile')}
       ${selectFilter('scoreMode', 'Perfil del objeto', [['any', 'Todos los perfiles'], ['offensive', 'Mejores ofensivos: filtrar y ordenar'], ['defensive', 'Mejores defensivos: filtrar y ordenar'], ['both', 'Mejores en ambos perfiles']])}
-      <p class="filter-help">Solo objetos por encima de la mediana de su tipo en el intervalo de niveles de arriba. Se ordenan de mayor a menor puntuación. Los demás filtros se acumulan.</p>
+      <p class="filter-help">Solo objetos por encima de la mediana de su tipo y categoría de rareza en el intervalo de niveles de arriba. Legendarios, épicos, reliquias y recuerdos compiten juntos; comunes, raros y míticos por separado. Se ordenan de mayor a menor puntuación. Los demás filtros se acumulan.</p>
       <details class="score-formula"><summary>Cómo se calcula</summary><p>PA ×100, PM ×75 y esquiva ×0,25 suman a ambos perfiles. Ofensivo: crítico ×15 + dominios positivos (excepto cura). El dominio elemental cuenta una vez, sin multiplicar por elementos. Al combinar dominios, su suma cuenta ×0,8 (peso 200/250 del devblog). Defensivo: anticipación ×15 + placaje + resistencias por elemento, crítica y espalda. PdV y malus no puntúan. La mediana solo cambia al modificar el intervalo de niveles, no con los otros filtros.</p><a href="https://www.wakfu.com/es/mmorpg/actualidad/devblog/articulos/1627639-devblog-equilibrado-objetos" target="_blank" rel="noreferrer">Devblog de equilibrado de objetos</a></details>
     </details>
     <details class="item-filter-group">${heading('Elementos de dominio', 'elements')}${choices('elements', [['1', 'Monoelemental'], ['2', 'Bielemental'], ['3', 'Trielemental'], ['4', 'Todos los elementos']])}<p class="filter-help">Clasificación del objeto completo: un dominio en 3 elementos con un bonus extra de fuego sigue siendo trielemental, no mono.</p></details>
@@ -631,7 +631,7 @@ function renderEquipmentProfile(item) {
   const label = key => window.WAKFU_EQUIPMENT_FILTERS.definitions.find(stat => stat.key === key)?.label || key;
   const number = value => value.toLocaleString('es', { maximumFractionDigits: 2 });
   return `<div class="item-profile-scores">${[['offensive', 'Ofensivo'], ['defensive', 'Defensivo']].map(([axis, title]) => `<div class="item-profile-score ${profile[axis] > profile[`${axis}Median`] ? 'above-median' : ''}"><span>${title}</span><strong>${number(profile[axis])} pts</strong><small>Mediana ${number(profile[`${axis}Median`])} · percentil ${number(profile[`${axis}Percentile`])}</small></div>`).join('')}</div>
-    <p class="item-profile-reference">${escapeHtml(item.itemTypeName)} · niveles ${profile.referenceRange} · ${profile.sampleSize} objetos de referencia${profile.elements.length ? ` · ${profile.elements.join('/')} elemento(s)` : ''} · dominios ×${number(profile.domainMultiplier)}</p>
+    <p class="item-profile-reference">${escapeHtml(item.itemTypeName)} · ${escapeHtml(profile.referenceRarity)} · niveles ${profile.referenceRange} · ${profile.sampleSize} objetos de referencia${profile.elements.length ? ` · ${profile.elements.join('/')} elemento(s)` : ''} · dominios ×${number(profile.domainMultiplier)}</p>
     ${rules.length ? `<div class="item-equipment-conditions"><strong>Condiciones para equipar</strong><ul>${rules.map(rule => `<li>${escapeHtml(label(rule.stat))} ${rule.operator === '>=' ? '≥' : '≤'} ${rule.value}</li>`).join('')}</ul><small>Registro comunitario · requisitos del personaje</small></div>` : '<p class="item-profile-reference">Sin condición de equipamiento registrada.</p>'}`;
 }
 
@@ -678,7 +678,7 @@ function renderEquipmentCatalog() {
           )
           .join("");
         return `
-          <article class="sublimation-result equipment-result">
+          <article class="sublimation-result equipment-result rarity-${window.WAKFU_EQUIPMENT_FILTERS.rarityClass(item)}">
             <div class="sublimation-result-header">
               <div class="sublimation-result-title">
                 ${itemIcon(item.id)}

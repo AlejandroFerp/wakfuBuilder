@@ -2192,6 +2192,16 @@ a {
 .equipment-icon[hidden], .crafting-panel[hidden] { display: none; }
 .crafting-toggle { margin-top: 12px; width: 100%; }
 #equipment-results { max-height: none; overflow: visible; }
+.equipment-result.rarity-common { --rarity-color: #c5cbd3; }
+.equipment-result.rarity-rare { --rarity-color: #65d481; }
+.equipment-result.rarity-mythic { --rarity-color: #ffae65; }
+.equipment-result.rarity-legendary { --rarity-color: #f5db65; }
+.equipment-result.rarity-epic { --rarity-color: #f89bcd; }
+.equipment-result.rarity-relic { --rarity-color: #c39aff; }
+.equipment-result.rarity-memory { --rarity-color: #8edeea; }
+.equipment-result { border-color: var(--rarity-color); border-left-width: 4px; }
+.equipment-result .sublimation-result-title h4 { color: var(--rarity-color); }
+.equipment-result .catalog-kind { color: var(--rarity-color); background: rgba(0,0,0,.25); border: 1px solid var(--rarity-color); }
 .crafting-panel { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
 .crafting-panel select { width: 100%; margin-top: 8px; }
 .crafting-panel h5 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }

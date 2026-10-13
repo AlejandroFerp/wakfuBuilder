@@ -1,4 +1,10 @@
 (function (root) {
+  const rarityStyles = { 'Común': 'common', 'Raro': 'rare', 'Mítico': 'mythic', 'Legendario': 'legendary', 'Épico': 'epic', 'Reliquia': 'relic', 'Recuerdo': 'memory' };
+  function rarityClass(item) { return rarityStyles[item.rarityLabel] || 'common'; }
+  function comparisonRarity(item) {
+    return ['Legendario', 'Épico', 'Reliquia', 'Recuerdo'].includes(item.rarityLabel)
+      ? 'Legendario / Épico / Reliquia / Recuerdo' : item.rarityLabel || 'Común';
+  }
   const groups = [
     { label: 'Principales', stats: [
       ['health', 'PdV', 20], ['ap', 'PA', 31], ['wp', 'PW', 191], ['mp', 'PM', 41],
@@ -147,9 +153,11 @@
       for (const item of items) {
         if (item.level < min || item.level > max) continue;
         const profile = profiles.get(item.id);
-        const bucket = buckets.get(item.itemTypeName) || [];
+        profile.referenceRarity = comparisonRarity(item);
+        const bucketKey = JSON.stringify([item.itemTypeName, profile.referenceRarity]);
+        const bucket = buckets.get(bucketKey) || [];
         bucket.push(profile);
-        buckets.set(item.itemTypeName, bucket);
+        buckets.set(bucketKey, bucket);
       }
       for (const bucket of buckets.values()) {
         for (const axis of ['offensive', 'defensive']) {
@@ -223,5 +231,5 @@
   function effectiveSort(filters) {
     return ['offensive', 'defensive', 'both'].includes(filters.scoreMode) ? `score:${filters.scoreMode}` : filters.sort;
   }
-  root.WAKFU_EQUIPMENT_FILTERS = { groups, definitions, statsFor, blank, invalid, createIndex, effectValue, profileFor, bracketFor, bracketEnds, conditionsFor, conditionOptions, effectiveSort };
+  root.WAKFU_EQUIPMENT_FILTERS = { groups, definitions, statsFor, blank, invalid, createIndex, effectValue, profileFor, bracketFor, bracketEnds, conditionsFor, conditionOptions, effectiveSort, rarityClass };
 })(typeof window === 'undefined' ? globalThis : window);

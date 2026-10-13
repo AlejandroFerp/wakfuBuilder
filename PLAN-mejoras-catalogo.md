@@ -33,7 +33,7 @@ Ejemplo verificado: niveles 51–80, PA ≥1, dominio distancia ≥20 → 13 res
 - [x] Filtros con/sin estadísticas negativas y por malus concreto, sin confundirlos con los requisitos del personaje.
 - [x] Mono, bi, tri y todos los elementos según bonus positivos.
 - [x] Índices ofensivo/defensivo con PA ×100, PM ×75, crítico/anticipación ×15; esquiva ×0,25 en ambos perfiles; sin PdV ni cura ni penalizaciones por malus. Dominios combinados ponderados ×0,8 (peso 200/250 del devblog).
-- [x] Medianas y percentiles por tipo dentro del intervalo mínimo/máximo de niveles. Sin selector adicional de franjas. Los perfiles filtran sobre la mediana y ordenan por puntos descendentes automáticamente.
+- [x] Medianas y percentiles por tipo y categoría de rareza dentro del intervalo mínimo/máximo de niveles. Común, raro y mítico por separado; legendario, épico, reliquia y recuerdo juntos. Tarjetas con colores de rareza. Sin selector adicional de franjas. Los perfiles filtran sobre la mediana y ordenan por puntos descendentes automáticamente.
 - [x] 24 pruebas correctas, incluida cobertura del catálogo completo.
 - [ ] Revisión visual de los nuevos controles: el navegador integrado no está disponible en esta sesión.
 

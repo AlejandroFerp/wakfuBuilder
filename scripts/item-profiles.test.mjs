@@ -7,6 +7,34 @@ const api = globalThis.WAKFU_EQUIPMENT_FILTERS;
 const effect = (actionId, text, params = []) => ({ actionId, text, params });
 const item = (id, effects = [], extra = {}) => ({ id, level: 80, name: `Equipo ${id}`, itemTypeName: 'Casco', effects, recipes: [], searchText: `equipo ${id}`, rarityLabel: 'Legendario', ...extra });
 
+test('reference medians isolate lower rarities and pool all high-end rarities by type and level', () => {
+  const piece = (id, score, rarityLabel, extra = {}) => item(id, [effect(1053, `${score} Dominio distancia`), effect(173, `${score} Placaje`)], { rarityLabel, ...extra });
+  const pieces = [piece(1, 10, 'Raro'), piece(2, 30, 'Raro'), piece(3, 40, 'Mítico'), piece(4, 60, 'Mítico'),
+    piece(5, 100, 'Legendario'), piece(6, 200, 'Épico'), piece(7, 300, 'Reliquia'), piece(8, 400, 'Recuerdo'),
+    piece(9, 1000, 'Legendario', { itemTypeName: 'Botas' }), piece(10, 2000, 'Legendario', { level: 81 }),
+    piece(11, 1, 'Común'), piece(12, 5, 'Común')];
+  const index = api.createIndex(pieces);
+  const filters = api.blank(); filters.minLevel = 80; filters.maxLevel = 80; filters.scoreMode = 'both';
+  assert.deepEqual(index.search(filters).map(x => x.id), [8, 7, 4, 2, 12]);
+  for (const [id, median, size] of [[1, 20, 2], [3, 50, 2], [5, 250, 4], [9, 1000, 1], [11, 3, 2]]) {
+    const profile = index.profiles.get(id);
+    assert.equal(profile.offensiveMedian, median);
+    assert.equal(profile.defensiveMedian, median);
+    assert.equal(profile.sampleSize, size);
+  }
+  assert.equal(index.profiles.get(5).offensivePercentile, 12.5);
+  assert.equal(index.profiles.get(8).offensivePercentile, 87.5);
+  filters.rarities = ['Legendario', 'Reliquia']; filters.types = ['Casco'];
+  assert.deepEqual(index.search(filters).map(x => x.id), [7]);
+  assert.equal(index.profiles.get(5).offensiveMedian, 250, 'Other filters must not shrink the reference pool');
+  filters.maxLevel = 81;
+  assert.deepEqual(index.search(filters).map(x => x.id), [10]);
+  assert.equal(index.profiles.get(5).offensiveMedian, 300);
+  const extraLowVersions = api.createIndex([...pieces, piece(13, 2, 'Raro'), piece(14, 3, 'Mítico')]);
+  extraLowVersions.search({ ...api.blank(), minLevel: 80, maxLevel: 80 });
+  assert.equal(extraLowVersions.profiles.get(5).offensiveMedian, 250);
+});
+
 test('positive scores follow the agreed weights and exclude life, healing and negative stats', () => {
   const piece = item(1, [effect(31, '1 PA'), effect(41, '1 PM'), effect(150, '2% crítico'), effect(875, '3% anticipación'), effect(173, '40 Placaje'), effect(175, '100 Esquiva'), effect(120, '200 Dominio elemental'), effect(1053, '50 Dominio distancia'), effect(1055, '-500 Dominio berserker'), effect(20, '900 PdV'), effect(26, '600 Dominio cura'), effect(80, '10 Resistencia elemental'), effect(83, '20 Resistencia al agua'), effect(1069, '{condition}', [5, 0, 3])]);
   const profile = api.profileFor(piece);
