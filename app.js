@@ -211,6 +211,35 @@ function saveBuild() {
   localStorage.setItem(BUILD_STORAGE_KEY, JSON.stringify(state.equippedItems));
 }
 
+async function copyBuildCode() {
+  const input = document.querySelector('#build-code');
+  const status = document.querySelector('#build-code-status');
+  input.value = window.WAKFU_BUILD_CODE.encode(state);
+  try {
+    await navigator.clipboard.writeText(input.value);
+    status.textContent = 'Código copiado. Incluye objetos, sublimaciones y configuración de ranuras.';
+  } catch {
+    input.focus(); input.select();
+    status.textContent = 'Código generado y seleccionado. Pulsa Ctrl+C para copiarlo.';
+  }
+}
+
+function importBuildCode() {
+  const status = document.querySelector('#build-code-status');
+  let build;
+  try {
+    build = window.WAKFU_BUILD_CODE.decode(document.querySelector('#build-code').value, {
+      items: EQUIPMENT_CATALOG, slots: BUILD_SLOT_ORDER, targets: EQUIPMENT_SLOTS,
+      stats: ALL_STATS, sublimations: SUBLIMATION_CATALOG,
+    });
+  } catch (error) { status.textContent = error.message; return; }
+  Object.assign(state, build);
+  state.nextCombinationId = build.combinations.length + 1;
+  saveBuild();
+  renderBuildSummary(); renderStatsControls(); renderCombinationList(); calculateAndRender();
+  status.textContent = 'Set recuperado. Se han reemplazado los objetos y la configuración anteriores.';
+}
+
 const elements = {};
 
 function getElements() {
@@ -1956,6 +1985,8 @@ function bindEvents() {
     renderBuildSummary();
     showFeedback("Set vaciado.");
   });
+  document.querySelector('#copy-build-code').addEventListener('click', copyBuildCode);
+  document.querySelector('#import-build-code').addEventListener('click', importBuildCode);
   document.addEventListener("keydown", (event) => {
     const activeTagName = document.activeElement?.tagName;
     if (

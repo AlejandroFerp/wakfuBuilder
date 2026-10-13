@@ -2192,6 +2192,9 @@ a {
 .equipment-icon[hidden], .crafting-panel[hidden] { display: none; }
 .crafting-toggle { margin-top: 12px; width: 100%; }
 #equipment-results { max-height: none; overflow: visible; }
+.build-code-controls { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.build-code-controls label, .build-code-controls p { font-size: 12px; color: var(--muted); }
+.build-code-controls textarea { width: 100%; min-width: 0; resize: vertical; overflow-wrap: anywhere; }
 .equipment-result.rarity-common { --rarity-color: #c5cbd3; }
 .equipment-result.rarity-rare { --rarity-color: #65d481; }
 .equipment-result.rarity-mythic { --rarity-color: #ffae65; }
