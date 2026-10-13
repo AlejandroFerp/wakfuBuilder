@@ -62,32 +62,38 @@
     return { min, max, label: `${min}–${max}` };
   }
   function elementCounts(item) {
-    const counts = new Set();
-    if (item.effects.some(effect => effect.actionId === 120 && effectValue(effect, item).value > 0)) counts.add(4);
+    let randomCount = 0;
+    let universal = false;
     const specific = new Set();
     for (const effect of item.effects) {
       if (effectValue(effect, item).value <= 0) continue;
-      if (effect.actionId === 1068 && Number(effect.params?.[2]) > 0) counts.add(Number(effect.params[2]));
+      if (effect.actionId === 120) universal = true;
+      if (effect.actionId === 1068) randomCount = Math.max(randomCount, Number(effect.params?.[2]) || 0);
       if ([122, 123, 124, 125].includes(effect.actionId)) specific.add(effect.actionId);
     }
-    if (specific.size) counts.add(specific.size);
-    return [...counts].sort();
+    // A specific-element supplement does not make a multi-element item mono.
+    const count = universal ? 4 : Math.max(randomCount, specific.size);
+    return count ? [count] : [];
   }
   function profileFor(item) {
     const bonus = statsFor(item, true);
     const common = bonus.ap * 100 + bonus.mp * 75;
     const elemental = Math.max(bonus.fireMastery, bonus.waterMastery, bonus.earthMastery, bonus.airMastery) + bonus.randomMastery;
-    const offensive = common + bonus.dodge * .25 + bonus.critical * 50 + elemental + bonus.melee + bonus.distance + bonus.criticalMastery + bonus.rearMastery + bonus.berserk;
+    const domains = [elemental, bonus.melee, bonus.distance, bonus.criticalMastery, bonus.rearMastery, bonus.berserk].filter(value => value > 0);
+    // Devblog (1.81): reference weight 250, reduced to 200 for combined domains.
+    const domainMultiplier = domains.length > 1 ? 200 / 250 : 1;
+    const domainPoints = domains.reduce((sum, value) => sum + value, 0) * domainMultiplier;
+    const offensive = common + bonus.dodge * .25 + bonus.critical * 15 + domainPoints;
     let randomResistance = 0;
     for (const effect of item.effects) {
       if (effect.actionId === 1069) randomResistance += Math.max(0, effectValue(effect, item).value) * Number(effect.params?.[2] || 0);
     }
-    const defensive = common + bonus.block * 50 + bonus.tackle + bonus.dodge * .25 + bonus.fireResistance + bonus.waterResistance + bonus.earthResistance + bonus.airResistance + randomResistance + bonus.criticalResistance + bonus.rearResistance;
+    const defensive = common + bonus.block * 15 + bonus.tackle + bonus.dodge * .25 + bonus.fireResistance + bonus.waterResistance + bonus.earthResistance + bonus.airResistance + randomResistance + bonus.criticalResistance + bonus.rearResistance;
     const maluses = item.effects.flatMap(effect => {
       const value = effectValue(effect, item);
       return value.value < 0 ? [value.key || 'other'] : [];
     });
-    return { offensive, defensive, elements: elementCounts(item), maluses: [...new Set(maluses)], bracket: bracketFor(item.level) };
+    return { offensive, defensive, domainMultiplier, domainPoints, elements: elementCounts(item), maluses: [...new Set(maluses)], bracket: bracketFor(item.level) };
   }
   function median(values) {
     const sorted = [...values].sort((a, b) => a - b);
@@ -116,7 +122,7 @@
   ];
   function blank() {
     return { query: '', minLevel: null, maxLevel: null, rarities: [], types: [], acquisition: [], ranges: {}, sort: 'level-desc', page: 1,
-      elements: [], negatives: 'any', negativeStats: [], conditionMode: 'any', conditionStats: [], conditionRules: [], conditionSelection: [], scoreMode: 'any', bracket: '' };
+      elements: [], negatives: 'any', negativeStats: [], conditionMode: 'any', conditionStats: [], conditionRules: [], conditionSelection: [], scoreMode: 'any' };
   }
   function invalid(filters) {
     if (filters.minLevel != null && filters.maxLevel != null && filters.minLevel > filters.maxLevel) return 'El nivel mínimo supera el máximo.';
@@ -130,34 +136,45 @@
     const stats = new Map(items.map(item => [item.id, statsFor(item)]));
     const profiles = new Map(items.map(item => [item.id, profileFor(item)]));
     const conditions = new Map(items.map(item => [item.id, conditionsFor(item, conditionSource)]));
-    const buckets = new Map();
-    for (const item of items) {
-      const profile = profiles.get(item.id);
-      const key = `${item.itemTypeName}|${profile.bracket.label}`;
-      const bucket = buckets.get(key) || [];
-      bucket.push(profile);
-      buckets.set(key, bucket);
-    }
-    for (const bucket of buckets.values()) {
-      for (const axis of ['offensive', 'defensive']) {
-        const values = bucket.map(profile => profile[axis]).sort((a, b) => a - b);
-        const med = median(values);
-        const ranks = new Map();
-        for (let start = 0; start < values.length;) {
-          let end = start + 1;
-          while (end < values.length && values[end] === values[start]) end++;
-          ranks.set(values[start], (start + (end - start) / 2) / values.length * 100);
-          start = end;
-        }
-        for (const profile of bucket) {
-          profile[`${axis}Median`] = med;
-          profile[`${axis}Percentile`] = ranks.get(profile[axis]);
-          profile.sampleSize = bucket.length;
+    let referenceKey = null;
+    function updateReference(minLevel, maxLevel) {
+      const min = minLevel ?? 0;
+      const max = maxLevel ?? Math.max(0, ...items.map(item => item.level));
+      const key = `${min}|${max}`;
+      if (referenceKey === key) return;
+      referenceKey = key;
+      const buckets = new Map();
+      for (const item of items) {
+        if (item.level < min || item.level > max) continue;
+        const profile = profiles.get(item.id);
+        const bucket = buckets.get(item.itemTypeName) || [];
+        bucket.push(profile);
+        buckets.set(item.itemTypeName, bucket);
+      }
+      for (const bucket of buckets.values()) {
+        for (const axis of ['offensive', 'defensive']) {
+          const values = bucket.map(profile => profile[axis]).sort((a, b) => a - b);
+          const med = median(values);
+          const ranks = new Map();
+          for (let start = 0; start < values.length;) {
+            let end = start + 1;
+            while (end < values.length && values[end] === values[start]) end++;
+            ranks.set(values[start], (start + (end - start) / 2) / values.length * 100);
+            start = end;
+          }
+          for (const profile of bucket) {
+            profile[`${axis}Median`] = med;
+            profile[`${axis}Percentile`] = ranks.get(profile[axis]);
+            profile.sampleSize = bucket.length;
+            profile.referenceRange = `${min}–${max}`;
+          }
         }
       }
     }
+    updateReference(null, null);
     function search(filters) {
       if (invalid(filters)) return [];
+      updateReference(filters.minLevel, filters.maxLevel);
       const terms = filters.query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().split(/\s+/).filter(Boolean);
       const result = items.filter(item => {
         if (!terms.every(term => item.searchText.includes(term))) return false;
@@ -167,7 +184,6 @@
         if (filters.acquisition.length && !filters.acquisition.some(mode => mode === 'craft' ? item.recipes.length > 0 : mode === 'upgrade' ? item.recipes.some(recipe => recipe.isUpgrade) : item.recipes.length === 0)) return false;
         const profile = profiles.get(item.id);
         const rules = conditions.get(item.id);
-        if (filters.bracket && String(profile.bracket.max) !== filters.bracket) return false;
         if (filters.elements?.length && !filters.elements.some(count => profile.elements.includes(Number(count)))) return false;
         if (filters.negatives === 'none' && profile.maluses.length || filters.negatives === 'with' && !profile.maluses.length) return false;
         if (filters.negativeStats?.length && !filters.negativeStats.some(key => profile.maluses.includes(key))) return false;
@@ -182,18 +198,20 @@
           return value != null && (range.min == null || value >= range.min) && (range.max == null || value <= range.max);
         });
       });
-      const statSort = filters.sort.startsWith('stat:') ? filters.sort.slice(5) : null;
+      const sort = effectiveSort(filters);
+      const statSort = sort.startsWith('stat:') ? sort.slice(5) : null;
       return result.sort((a, b) => {
         const name = a.name.localeCompare(b.name, 'es') || a.id - b.id;
-        if (filters.sort.startsWith('score:')) {
-          const [axis, mode] = filters.sort.slice(6).split('-');
+        if (sort === 'score:both') return profiles.get(b.id).offensive + profiles.get(b.id).defensive - profiles.get(a.id).offensive - profiles.get(a.id).defensive || name;
+        if (sort.startsWith('score:')) {
+          const [axis, mode] = sort.slice(6).split('-');
           const key = mode === 'relative' ? `${axis}Percentile` : axis;
           return profiles.get(b.id)[key] - profiles.get(a.id)[key] || profiles.get(b.id)[axis] - profiles.get(a.id)[axis] || name;
         }
         if (statSort) return (stats.get(b.id)[statSort] || 0) - (stats.get(a.id)[statSort] || 0) || b.level - a.level || name;
-        if (filters.sort === 'name') return name;
-        if (filters.sort === 'level-asc') return a.level - b.level || name;
-        if (filters.sort === 'rarity') {
+        if (sort === 'name') return name;
+        if (sort === 'level-asc') return a.level - b.level || name;
+        if (sort === 'rarity') {
           const rank = { 'Común': 0, 'Raro': 1, 'Mítico': 2, 'Legendario': 3, 'Recuerdo': 4, 'Épico': 5, 'Reliquia': 6 };
           return (rank[b.rarityLabel] || 0) - (rank[a.rarityLabel] || 0) || b.level - a.level || name;
         }
@@ -202,5 +220,8 @@
     }
     return { search, stats, profiles, conditions };
   }
-  root.WAKFU_EQUIPMENT_FILTERS = { groups, definitions, statsFor, blank, invalid, createIndex, effectValue, profileFor, bracketFor, bracketEnds, conditionsFor, conditionOptions };
+  function effectiveSort(filters) {
+    return ['offensive', 'defensive', 'both'].includes(filters.scoreMode) ? `score:${filters.scoreMode}` : filters.sort;
+  }
+  root.WAKFU_EQUIPMENT_FILTERS = { groups, definitions, statsFor, blank, invalid, createIndex, effectValue, profileFor, bracketFor, bracketEnds, conditionsFor, conditionOptions, effectiveSort };
 })(typeof window === 'undefined' ? globalThis : window);
