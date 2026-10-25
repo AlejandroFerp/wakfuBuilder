@@ -8,7 +8,7 @@ Abre `index.html` en un navegador. La aplicación permite buscar sublimaciones y
 
 Los sets en preparación se guardan únicamente en `localStorage` del navegador. El catálogo incluye recetas e ingredientes extraídos del CDN oficial. No infiere precios, drops ni rutas no verificadas; cada ficha también enlaza a MethodWakfu para comprobar esas vías de obtención.
 
-Las pestañas superiores separan el optimizador de la guía de encantamientos y su referencia de bonus.
+Las pestañas superiores separan el optimizador, la guía de encantamientos y «Wakfu Guides». Esta última muestra la biblioteca pública de Notion con su código oficial de inserción y ofrece un enlace para abrirla aparte. La vista se carga al entrar por primera vez en la pestaña. Las actualizaciones del contenido publicado en Notion se reflejan en esa biblioteca sin copiar las guías al Builder.
 
 En «Set en preparación», «Copiar código del set» genera un código `WFB1.` que incluye objetos equipados, sublimaciones, colores, destinos y prioridades/valores de ranuras. Pega el código en el mismo panel y pulsa «Cargar set» para reemplazar el set y recalcularlo. Se comprueba la versión, la existencia de los objetos y su compatibilidad con cada posición antes de aplicar cambios; un código inválido conserva el set actual. Los filtros del catálogo no forman parte del código.
 

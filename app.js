@@ -1847,7 +1847,14 @@ function activateTab(tabId) {
     const selected = tab.id === tabId;
     tab.setAttribute("aria-selected", String(selected));
     tab.tabIndex = selected ? 0 : -1;
-    document.getElementById(tab.getAttribute("aria-controls")).hidden = !selected;
+    const panel = document.getElementById(tab.getAttribute("aria-controls"));
+    panel.hidden = !selected;
+    if (selected) {
+      panel.querySelectorAll("iframe[data-src]").forEach((frame) => {
+        frame.src = frame.dataset.src;
+        frame.removeAttribute("data-src");
+      });
+    }
   });
   window.scrollTo({ top: 0, behavior: "instant" });
 }

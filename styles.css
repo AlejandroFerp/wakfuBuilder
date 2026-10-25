@@ -2167,12 +2167,18 @@ a {
 
 [hidden] { display: none !important; }
 .compact-topbar { position: sticky; top: 0; z-index: 10; padding: 10px 0; gap: 16px; background: var(--bg); }
-.page-tabs { display: flex; gap: 6px; }
+.page-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .page-tab { border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; background: transparent; color: var(--muted-strong); }
 .page-tab[aria-selected="true"] { color: var(--accent); background: var(--accent-dark); border-color: var(--accent); }
 .resistance-rule { margin: 0 0 16px; color: var(--muted-strong); font-size: 12px; line-height: 1.6; }
 #guide-panel { padding-bottom: 24px; }
 #guide-panel .reference-card { margin-top: 18px; }
+.wakfu-guides { padding: clamp(16px, 3vw, 30px); }
+.wakfu-guides-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.wakfu-guides-heading > div { flex: 1 1 320px; }
+.wakfu-guides h2 { margin: 0; }
+.wakfu-guides-open { width: auto; gap: 18px; text-decoration: none; }
+.wakfu-guides-frame { display: block; width: 100%; height: 78vh; min-height: 480px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff; color-scheme: light; }
 @media (max-width: 610px) {
   .compact-topbar { flex-wrap: wrap; gap: 8px; }
   .page-tabs { width: 100%; }

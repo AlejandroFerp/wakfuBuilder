@@ -11,7 +11,7 @@
     <link rel="icon" type="image/png" href="assets/wakfu-builder-w.png" />
     <link rel="apple-touch-icon" href="assets/wakfu-builder-w.png" />
     <meta name="theme-color" content="#079fe5" />
-    <link rel="stylesheet" href="styles.css?v=20261013-5" />
+    <link rel="stylesheet" href="styles.css?v=20261025-1" />
     <script defer src="data/game-data.js?v=20260919-1"></script>
     <script defer src="sublimations-data.js?v=20261002-3"></script>
     <script defer src="data/item-icons.js?v=20261003-2"></script>
@@ -19,7 +19,7 @@
     <script defer src="data/item-conditions.js?v=20261013-1"></script>
     <script defer src="equipment-filters.js?v=20261013-4"></script>
     <script defer src="build-code.js?v=20261013-5"></script>
-    <script defer src="app.js?v=20261013-5"></script>
+    <script defer src="app.js?v=20261025-1"></script>
   </head>
   <body>
     <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -33,6 +33,7 @@
       <nav class="page-tabs" role="tablist" aria-label="Secciones">
         <button id="planner-tab" class="page-tab" type="button" role="tab" aria-selected="true" aria-controls="planner-panel">Optimizador</button>
         <button id="guide-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="guide-panel" tabindex="-1">Guía de encantamientos</button>
+        <button id="wakfu-guides-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="wakfu-guides-panel" tabindex="-1">Wakfu Guides</button>
       </nav>
     </header>
 
@@ -306,6 +307,20 @@
           </section>
 
       </div>
+      </div>
+      <div id="wakfu-guides-panel" role="tabpanel" aria-labelledby="wakfu-guides-tab" hidden>
+        <section class="panel wakfu-guides" aria-labelledby="wakfu-guides-title">
+          <div class="wakfu-guides-heading">
+            <div>
+              <p class="eyebrow">BIBLIOTECA COMPARTIDA</p>
+              <h2 id="wakfu-guides-title">Wakfu Guides</h2>
+              <p class="guide-note">Mazmorras, builds, equipamiento y resúmenes en español para preparar vuestras partidas. La biblioteca se amplía en Notion.</p>
+            </div>
+            <a class="primary-button wakfu-guides-open" href="https://industrious-legend-b03.notion.site/Biblioteca-Wakfu-ndice-en-espa-ol-de-Wakfu-Guide-404a19bd34ef81b5bd04e265c8d41520" target="_blank" rel="noopener noreferrer">Abrir biblioteca en Notion <span aria-hidden="true">↗</span></a>
+          </div>
+          <iframe class="wakfu-guides-frame" title="Biblioteca pública de guías de Wakfu" data-src="https://industrious-legend-b03.notion.site/ebd//404a19bd34ef81b5bd04e265c8d41520" loading="lazy" allowfullscreen></iframe>
+          <p class="guide-note">Si la vista integrada no carga, utiliza «Abrir biblioteca en Notion». Los enlaces del catálogo llevan a las guías originales; las fichas en español están marcadas como resúmenes.</p>
+        </section>
       </div>
     </main>
 
